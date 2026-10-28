@@ -1,0 +1,11 @@
+[
+  {
+    "name": "repo2-forked",
+    "owner": {
+      "login": "octocat"
+    },
+    "default_branch": "main",
+    "fork": true,
+    "size": 200
+  }
+]

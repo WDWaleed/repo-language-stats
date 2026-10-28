@@ -12,6 +12,17 @@ from repo_language_stats.counting import (
     count_bytes,
     count_lines,
 )
+from repo_language_stats.discovery import (
+    FileDiscoveryFilter,
+    TreeEntry,
+    TreeFilterConfig,
+    filter_tree,
+    is_eligible,
+)
+from repo_language_stats.github_api import (
+    GitHubAPIClient,
+    RepoInfo,
+)
 from repo_language_stats.language import (
     LanguageClassifier,
     classify,
@@ -45,4 +56,11 @@ __all__ = [
     "NotebookParseResult",
     "parse_notebook",
     "determine_notebook_language",
+    "TreeEntry",
+    "TreeFilterConfig",
+    "FileDiscoveryFilter",
+    "filter_tree",
+    "is_eligible",
+    "RepoInfo",
+    "GitHubAPIClient",
 ]

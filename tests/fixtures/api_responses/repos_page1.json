@@ -1,0 +1,11 @@
+[
+  {
+    "name": "repo1",
+    "owner": {
+      "login": "octocat"
+    },
+    "default_branch": "main",
+    "fork": false,
+    "size": 100
+  }
+]

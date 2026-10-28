@@ -1,0 +1,8 @@
+{
+  "sha": "blob1",
+  "node_id": "B_kwDO...",
+  "size": 17,
+  "url": "https://api.github.com/repos/octocat/repo1/git/blobs/blob1",
+  "content": "cHJpbnQoImhlbGxvIikK\n",
+  "encoding": "base64"
+}

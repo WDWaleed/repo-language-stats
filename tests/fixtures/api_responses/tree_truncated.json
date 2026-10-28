@@ -1,0 +1,14 @@
+{
+  "sha": "tree-sha-trunc",
+  "url": "https://api.github.com/repos/octocat/repo1/git/trees/tree-sha-trunc",
+  "tree": [
+    {
+      "path": "file1.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "blob2",
+      "size": 100
+    }
+  ],
+  "truncated": true
+}

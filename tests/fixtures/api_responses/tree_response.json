@@ -1,0 +1,20 @@
+{
+  "sha": "tree-sha-123",
+  "url": "https://api.github.com/repos/octocat/repo1/git/trees/tree-sha-123",
+  "tree": [
+    {
+      "path": "src/main.py",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "blob1",
+      "size": 50
+    },
+    {
+      "path": "src",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "tree2"
+    }
+  ],
+  "truncated": false
+}
