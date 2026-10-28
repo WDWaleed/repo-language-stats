@@ -137,8 +137,8 @@ class GitHubAPIClient:
                     logger.warning("Resource not found (404): %s", url)
                     return None
 
-                if resp.status_code == 422:
-                    logger.info("Unprocessable entity / empty repository (422): %s", url)
+                if resp.status_code in (409, 422):
+                    logger.info("Empty repository or unprocessable entity (%d): %s", resp.status_code, url)
                     return None
 
                 if resp.status_code in (403, 429):

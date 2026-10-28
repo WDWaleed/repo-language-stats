@@ -237,3 +237,4 @@ def render_report(
         return format_csv(stats, per_repo=per_repo, show_files=show_files)
     else:
         return format_table(stats, per_repo=per_repo, show_files=show_files)
+

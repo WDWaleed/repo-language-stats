@@ -166,54 +166,59 @@ def scan_user(
         logger.info("Scanning repository %s/%s (branch: %s)...", repo.owner, repo.name, repo.default_branch)
         accumulator.start_repo(repo.name)
 
-        tree_entries, is_truncated = client.get_tree(
-            owner=repo.owner,
-            repo=repo.name,
-            sha=repo.default_branch,
-        )
+        try:
+            tree_entries, is_truncated = client.get_tree(
+                owner=repo.owner,
+                repo=repo.name,
+                sha=repo.default_branch,
+            )
 
-        if not tree_entries:
-            logger.info("Repository %s/%s has no accessible tree entries. Skipping.", repo.owner, repo.name)
-            accumulator.finish_repo(skipped=True)
-            if progress and task_id is not None:
-                progress.advance(task_id)
-            continue
-
-        eligible = filter_tree(tree_entries, config=cfg)
-        logger.debug("Found %d eligible files out of %d tree entries in %s", len(eligible), len(tree_entries), repo.name)
-
-        for entry in eligible:
-            blob_content = client.get_blob(owner=repo.owner, repo=repo.name, sha=entry.sha)
-            if blob_content is None:
+            if not tree_entries:
+                logger.info("Repository %s/%s has no accessible tree entries. Skipping.", repo.owner, repo.name)
+                accumulator.finish_repo(skipped=True)
+                if progress and task_id is not None:
+                    progress.advance(task_id)
                 continue
 
-            if is_notebook(entry.path):
-                nb_res = parse_notebook(
-                    content=blob_content,
-                    fallback_language=ipynb_language,
-                    file_path=f"{repo.name}/{entry.path}",
-                )
-                if nb_res:
-                    lang_name = f"Jupyter ({nb_res.language})" if not nb_res.language.startswith("Jupyter") else nb_res.language
-                    accumulator.add_stats(
-                        language=lang_name,
-                        bytes_count=nb_res.total_bytes,
-                        lines_count=nb_res.total_lines,
-                        files_count=1,
-                        repo_name=repo.name,
-                    )
-            else:
-                lang = classify(entry.path)
-                if lang:
-                    accumulator.add_file(
-                        language=lang,
-                        content=blob_content,
-                        repo_name=repo.name,
-                    )
+            eligible = filter_tree(tree_entries, config=cfg)
+            logger.debug("Found %d eligible files out of %d tree entries in %s", len(eligible), len(tree_entries), repo.name)
 
-        accumulator.finish_repo(skipped=False)
-        if progress and task_id is not None:
-            progress.advance(task_id)
+            for entry in eligible:
+                blob_content = client.get_blob(owner=repo.owner, repo=repo.name, sha=entry.sha)
+                if blob_content is None:
+                    continue
+
+                if is_notebook(entry.path):
+                    nb_res = parse_notebook(
+                        content=blob_content,
+                        fallback_language=ipynb_language,
+                        file_path=f"{repo.name}/{entry.path}",
+                    )
+                    if nb_res:
+                        lang_name = f"Jupyter ({nb_res.language})" if not nb_res.language.startswith("Jupyter") else nb_res.language
+                        accumulator.add_stats(
+                            language=lang_name,
+                            bytes_count=nb_res.total_bytes,
+                            lines_count=nb_res.total_lines,
+                            files_count=1,
+                            repo_name=repo.name,
+                        )
+                else:
+                    lang = classify(entry.path)
+                    if lang:
+                        accumulator.add_file(
+                            language=lang,
+                            content=blob_content,
+                            repo_name=repo.name,
+                        )
+
+            accumulator.finish_repo(skipped=False)
+        except Exception as exc:
+            logger.warning("Error scanning repository %s/%s: %s. Skipping.", repo.owner, repo.name, exc)
+            accumulator.finish_repo(skipped=True)
+        finally:
+            if progress and task_id is not None:
+                progress.advance(task_id)
 
     return accumulator.finalize()
 
@@ -287,3 +292,4 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.exception("An error occurred during scanning: %s", exc)
         sys.stderr.write(f"Error: {exc}\n")
         return 1
+

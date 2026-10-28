@@ -282,3 +282,4 @@ def test_cli_no_repos_found(capsys):
     assert data["username"] == "empty_user"
     assert data["repos_scanned"] == 0
     assert data["languages"] == []
+

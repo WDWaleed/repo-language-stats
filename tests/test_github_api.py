@@ -210,7 +210,21 @@ def test_skip_on_422_empty_repo(caplog):
         with GitHubAPIClient() as client:
             entries, is_truncated = client.get_tree("octocat", "empty", "main")
             assert entries == []
-            assert "empty repository (422)" in caplog.text
+            assert "Empty repository or unprocessable entity (422)" in caplog.text
+
+
+@respx.mock
+def test_skip_on_409_empty_repo(caplog):
+    respx.get("https://api.github.com/repos/octocat/conflict-empty/git/trees/main").mock(
+        return_value=httpx.Response(409, json={"message": "Git Repository is empty."})
+    )
+
+    with caplog.at_level("INFO"):
+        with GitHubAPIClient() as client:
+            entries, is_truncated = client.get_tree("octocat", "conflict-empty", "main")
+            assert entries == []
+            assert is_truncated is False
+            assert "Empty repository or unprocessable entity (409)" in caplog.text
 
 
 @respx.mock
