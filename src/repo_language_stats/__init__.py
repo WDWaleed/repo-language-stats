@@ -2,6 +2,11 @@
 
 __version__ = "0.1.0"
 
+from repo_language_stats.cli import (
+    build_parser,
+    main,
+    scan_user,
+)
 from repo_language_stats.counting import (
     AggregateStats,
     LanguageStats,
@@ -36,6 +41,13 @@ from repo_language_stats.notebook import (
     determine_notebook_language,
     parse_notebook,
 )
+from repo_language_stats.reporting import (
+    build_rich_table,
+    format_csv,
+    format_json,
+    format_table,
+    render_report,
+)
 
 __all__ = [
     "__version__",
@@ -63,4 +75,12 @@ __all__ = [
     "is_eligible",
     "RepoInfo",
     "GitHubAPIClient",
+    "build_rich_table",
+    "format_table",
+    "format_json",
+    "format_csv",
+    "render_report",
+    "build_parser",
+    "scan_user",
+    "main",
 ]

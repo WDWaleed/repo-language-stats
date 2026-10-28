@@ -223,3 +223,4 @@ def filter_tree(
 ) -> list[TreeEntry]:
     """Filter tree entries using the default discovery filter."""
     return get_default_filter().filter_tree(entries, config=config)
+

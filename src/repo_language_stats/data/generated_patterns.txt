@@ -27,3 +27,4 @@
 .*poetry\.lock$
 .*composer\.lock$
 .*Pipfile\.lock$
+
