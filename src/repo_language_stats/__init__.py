@@ -20,6 +20,11 @@ from repo_language_stats.language import (
     is_binary,
     is_notebook,
 )
+from repo_language_stats.notebook import (
+    NotebookParseResult,
+    determine_notebook_language,
+    parse_notebook,
+)
 
 __all__ = [
     "__version__",
@@ -37,4 +42,7 @@ __all__ = [
     "is_notebook",
     "get_language_type",
     "get_language_color",
+    "NotebookParseResult",
+    "parse_notebook",
+    "determine_notebook_language",
 ]
