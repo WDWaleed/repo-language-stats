@@ -76,7 +76,7 @@ def test_documentation_excluded_and_included():
 
 
 def test_default_excluded_formats():
-    # csv, yaml, toml, svg, dotenv excluded by default
+    # csv, yaml, toml, svg, dotenv, json, jsonc excluded by default
     assert is_eligible("data.csv") is False
     assert is_eligible("config.yaml") is False
     assert is_eligible("pipeline.yml") is False
@@ -86,6 +86,10 @@ def test_default_excluded_formats():
     assert is_eligible(".env.local") is False
     assert is_eligible("sub/dir/.env.prod") is False
     assert is_eligible("config.env") is False
+    assert is_eligible("package.json") is False
+    assert is_eligible("tsconfig.json") is False
+    assert is_eligible("settings.jsonc") is False
+    assert is_eligible("records.jsonl") is False
 
 
 def test_include_all_flag():
@@ -97,6 +101,10 @@ def test_include_all_flag():
     assert is_eligible("logo.svg", config=cfg) is True
     assert is_eligible(".env", config=cfg) is True
     assert is_eligible(".env.local", config=cfg) is True
+    assert is_eligible("package.json", config=cfg) is True
+    assert is_eligible("tsconfig.json", config=cfg) is True
+    assert is_eligible("settings.jsonc", config=cfg) is True
+    assert is_eligible("records.jsonl", config=cfg) is True
 
 
 def test_non_blob_entries_excluded():

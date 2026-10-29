@@ -12,6 +12,8 @@ To provide meaningful programming-language statistics that reflect actual applic
 
 | Category | File Extensions / Patterns | Description |
 |---|---|---|
+| **JSON** | `.json`, `.jsonl`, `.json5`, `.jsonld` | Structured data exchanges, lockfiles, API payloads |
+| **JSON with Comments** | `.jsonc`, `tsconfig.json`, `jsconfig.json`, `.code-workspace` | Configuration files supporting comments |
 | **CSV** | `.csv` | Tabular data exports and datasets |
 | **YAML** | `.yaml`, `.yml` | Serialization manifests, CI/CD pipelines, configurations |
 | **TOML** | `.toml` | Configuration manifests (e.g., `pyproject.toml`, `Cargo.toml`) |
@@ -20,15 +22,15 @@ To provide meaningful programming-language statistics that reflect actual applic
 
 ### Why Are These Excluded by Default?
 
-1. **Volume Disproportion**: Large data files (such as multi-megabyte `.csv` datasets or `.yaml` fixtures) and graphic assets (like `.svg` icon sets) frequently dwarf actual programming logic in byte and line counts.
-2. **Configuration vs Code**: Files like `.toml`, `.yaml`, and `.env` contain configuration and metadata rather than executable programming logic.
+1. **Volume Disproportion**: Large data files (such as multi-megabyte `.json`/`.csv` datasets or `.yaml` fixtures) and graphic assets (like `.svg` icon sets) frequently dwarf actual programming logic in byte and line counts.
+2. **Configuration vs Code**: Files like `.json`, `.jsonc`, `.toml`, `.yaml`, and `.env` contain serialized configuration, schemas, and metadata rather than executable programming logic.
 3. **Accuracy**: Excluding these formats by default gives a clean, developer-centric view of the programming languages powering a repository.
 
 ---
 
 ## 2. Including Default Excluded Files (`--all`)
 
-If you want to count all files—including CSV datasets, YAML configs, TOML manifests, SVG assets, and dotenv files—use the **`--all`** flag:
+If you want to count all files—including JSON data, JSON with Comments configs, CSV datasets, YAML configs, TOML manifests, SVG assets, and dotenv files—use the **`--all`** flag:
 
 ```bash
 repo-language-stats <username> --all
@@ -39,7 +41,7 @@ repo-language-stats <username> --all
 uv run repo-language-stats octocat --all
 ```
 
-When `--all` is supplied, files matching `.csv`, `.yaml`, `.yml`, `.toml`, `.svg`, and `.env*` will be classified according to GitHub Linguist rules (e.g. `CSV`, `YAML`, `TOML`, `SVG`, `Dotenv`) and included in the byte, line, and file count statistics.
+When `--all` is supplied, files matching `.json`, `.jsonc`, `.csv`, `.yaml`, `.yml`, `.toml`, `.svg`, and `.env*` will be classified according to GitHub Linguist rules (e.g. `JSON`, `JSON with Comments`, `CSV`, `YAML`, `TOML`, `SVG`, `Dotenv`) and included in the byte, line, and file count statistics.
 
 ---
 
@@ -72,3 +74,4 @@ To keep statistics cohesive and avoid splitting unified ecosystems into separate
 - Code cells extracted from Jupyter notebooks (`.ipynb`) using a Python kernel are counted together with standard `.py` files under **`Python`**.
 - Notebook markdown cells, outputs, and execution metadata continue to be excluded.
 - Notebooks running non-Python kernels (e.g. R, Julia) remain attributed to their respective languages (e.g. `Jupyter (R)`).
+

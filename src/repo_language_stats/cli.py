@@ -80,7 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         dest="include_all",
         default=False,
-        help="Include data and configuration files excluded by default (CSV, YAML, TOML, SVG, and Dotenv files).",
+        help="Include data and configuration files excluded by default (CSV, YAML, TOML, SVG, Dotenv, JSON, and JSON with Comments).",
     )
     parser.add_argument(
         "--exclude-pattern",
