@@ -38,7 +38,7 @@ repo-language-stats <username> --all
 
 *Example:*
 ```bash
-uv run repo-language-stats octocat --all
+uv run repo-language-stats WDWaleed --all
 ```
 
 When `--all` is supplied, files matching `.json`, `.jsonc`, `.csv`, `.yaml`, `.yml`, `.toml`, `.svg`, and `.env*` will be classified according to GitHub Linguist rules (e.g. `JSON`, `JSON with Comments`, `CSV`, `YAML`, `TOML`, `SVG`, `Dotenv`) and included in the byte, line, and file count statistics.
@@ -57,7 +57,7 @@ When `--all` is supplied, files matching `.json`, `.jsonc`, `.csv`, `.yaml`, `.y
 
 *Example combining flags:*
 ```bash
-uv run repo-language-stats octocat --all --include-docs --include-vendored
+uv run repo-language-stats WDWaleed --all --include-docs --include-vendored
 ```
 
 ---

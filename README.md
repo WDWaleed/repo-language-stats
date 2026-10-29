@@ -118,7 +118,7 @@ set GITHUB_TOKEN=ghp_yourPersonalAccessTokenHere
 
 **Option 2: CLI Option**
 ```bash
-repo-language-stats octocat --token ghp_yourPersonalAccessTokenHere
+repo-language-stats WDWaleed --token ghp_yourPersonalAccessTokenHere
 ```
 
 ---
@@ -129,7 +129,7 @@ repo-language-stats octocat --token ghp_yourPersonalAccessTokenHere
 Scans all public, non-fork repositories owned by the user:
 
 ```bash
-repo-language-stats octocat
+repo-language-stats WDWaleed
 ```
 
 ### Scan a Single Repository
@@ -137,10 +137,10 @@ You can target an individual repository using either `owner/repo` syntax or the 
 
 ```bash
 # Using owner/repo positional syntax:
-repo-language-stats octocat/Hello-World
+repo-language-stats WDWaleed/repo-language-stats
 
 # Using the --repo flag:
-repo-language-stats octocat --repo Hello-World
+repo-language-stats WDWaleed --repo repo-language-stats
 ```
 
 ### Display Options
@@ -148,13 +148,13 @@ repo-language-stats octocat --repo Hello-World
 #### Show File Counts
 Add the `--show-files` flag to display the total number of files counted for each language:
 ```bash
-repo-language-stats octocat --show-files
+repo-language-stats WDWaleed --show-files
 ```
 
 #### Per-Repository Breakdown
 Add the `--per-repo` flag to display an individual language breakdown table for each scanned repository in addition to the aggregate summary:
 ```bash
-repo-language-stats octocat --per-repo
+repo-language-stats WDWaleed --per-repo
 ```
 
 ### Inclusion & Exclusion Flags
@@ -162,23 +162,23 @@ repo-language-stats octocat --per-repo
 #### Include Default-Excluded Data & Config Files (`--all`)
 By default, JSON, JSON with Comments, CSV, YAML, TOML, SVG, and Dotenv files are excluded to avoid skewing code stats. Use `--all` to include them:
 ```bash
-repo-language-stats octocat --all
+repo-language-stats WDWaleed --all
 ```
 
 #### Include Forked Repositories
 ```bash
-repo-language-stats octocat --include-forks
+repo-language-stats WDWaleed --include-forks
 ```
 
 #### Include Documentation, Vendored, or Generated Files
 ```bash
-repo-language-stats octocat --include-docs --include-vendored --include-generated
+repo-language-stats WDWaleed --include-docs --include-vendored --include-generated
 ```
 
 #### Exclude Custom Glob Patterns
 Specify one or more custom exclusion patterns (matched against relative file paths and filenames):
 ```bash
-repo-language-stats octocat --exclude-pattern "tests/**" --exclude-pattern "*.min.js"
+repo-language-stats WDWaleed --exclude-pattern "tests/**" --exclude-pattern "*.min.js"
 ```
 
 ### Exporting Results
@@ -186,25 +186,25 @@ repo-language-stats octocat --exclude-pattern "tests/**" --exclude-pattern "*.mi
 #### Export to JSON
 ```bash
 # Output JSON to stdout:
-repo-language-stats octocat --format json
+repo-language-stats WDWaleed --format json
 
 # Save JSON to a file:
-repo-language-stats octocat --format json -o stats.json
+repo-language-stats WDWaleed --format json -o stats.json
 ```
 
 #### Export to CSV
 ```bash
 # Output CSV to stdout:
-repo-language-stats octocat --format csv
+repo-language-stats WDWaleed --format csv
 
 # Save CSV to a file:
-repo-language-stats octocat --format csv -o stats.csv
+repo-language-stats WDWaleed --format csv -o stats.csv
 ```
 
 #### Increase Verbosity for Debugging
 ```bash
-repo-language-stats octocat -v   # INFO logging
-repo-language-stats octocat -vv  # DEBUG logging (shows API endpoints, rate limit headers)
+repo-language-stats WDWaleed -v   # INFO logging
+repo-language-stats WDWaleed -vv  # DEBUG logging (shows API endpoints, rate limit headers)
 ```
 
 ---
@@ -225,7 +225,7 @@ usage: repo-language-stats [-h] [--repo REPO] [--token TOKEN]
 
 | Option | Description |
 |---|---|
-| `TARGET` | GitHub username (e.g. `octocat`) or single repository in `owner/repo` format (e.g. `octocat/Hello-World`). |
+| `TARGET` | GitHub username (e.g. `WDWaleed`) or single repository in `owner/repo` format (e.g. `WDWaleed/repo-language-stats`). |
 | `--repo REPO` | Specific repository name to scan when `TARGET` is a username. |
 | `--token TOKEN` | GitHub personal access token (defaults to `GITHUB_TOKEN` environment variable). |
 | `--include-forks` | Include forked repositories in the scan (excluded by default). |
