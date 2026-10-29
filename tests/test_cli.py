@@ -375,3 +375,110 @@ def test_cli_all_flag_includes_default_excluded(capsys):
     assert "CSV" in langs_all
     assert "TypeScript" in langs_all
 
+
+@respx.mock
+def test_cli_single_repo_slash_syntax(capsys):
+    respx.get("https://api.github.com/repos/octocat/single-repo").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "single-repo",
+                "owner": {"login": "octocat"},
+                "default_branch": "main",
+                "fork": False,
+            },
+        )
+    )
+
+    respx.get("https://api.github.com/repos/octocat/single-repo/git/trees/main", params={"recursive": "1"}).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "truncated": False,
+                "tree": [
+                    {
+                        "path": "index.js",
+                        "type": "blob",
+                        "sha": "blob_js",
+                    }
+                ],
+            },
+        )
+    )
+
+    respx.get("https://api.github.com/repos/octocat/single-repo/git/blobs/blob_js").mock(
+        return_value=httpx.Response(
+            200,
+            json={"encoding": "base64", "content": base64.b64encode(b"console.log('hi');\n").decode()},
+        )
+    )
+
+    ret = main(["octocat/single-repo", "--format", "json"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["username"] == "octocat/single-repo"
+    assert data["repos_scanned"] == 1
+    assert data["languages"][0]["language"] == "JavaScript"
+
+
+@respx.mock
+def test_cli_single_repo_flag_syntax(capsys):
+    respx.get("https://api.github.com/repos/octocat/flagged-repo").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "flagged-repo",
+                "owner": {"login": "octocat"},
+                "default_branch": "main",
+                "fork": False,
+            },
+        )
+    )
+
+    respx.get("https://api.github.com/repos/octocat/flagged-repo/git/trees/main", params={"recursive": "1"}).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "truncated": False,
+                "tree": [
+                    {
+                        "path": "main.py",
+                        "type": "blob",
+                        "sha": "blob_py",
+                    }
+                ],
+            },
+        )
+    )
+
+    respx.get("https://api.github.com/repos/octocat/flagged-repo/git/blobs/blob_py").mock(
+        return_value=httpx.Response(
+            200,
+            json={"encoding": "base64", "content": base64.b64encode(b"print('single')\n").decode()},
+        )
+    )
+
+    ret = main(["octocat", "--repo", "flagged-repo", "--format", "json"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["username"] == "octocat/flagged-repo"
+    assert data["repos_scanned"] == 1
+    assert data["languages"][0]["language"] == "Python"
+
+
+@respx.mock
+def test_cli_single_repo_not_found(capsys):
+    respx.get("https://api.github.com/repos/octocat/missing-repo").mock(
+        return_value=httpx.Response(404)
+    )
+
+    ret = main(["octocat/missing-repo", "--format", "json"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["username"] == "octocat/missing-repo"
+    assert data["repos_scanned"] == 0
+    assert data["languages"] == []
+

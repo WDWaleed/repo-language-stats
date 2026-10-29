@@ -5,6 +5,8 @@ __version__ = "0.1.0"
 from repo_language_stats.cli import (
     build_parser,
     main,
+    scan_repositories,
+    scan_single_repo,
     scan_user,
 )
 from repo_language_stats.counting import (
@@ -86,5 +88,7 @@ __all__ = [
     "display_report",
     "build_parser",
     "scan_user",
+    "scan_single_repo",
+    "scan_repositories",
     "main",
 ]

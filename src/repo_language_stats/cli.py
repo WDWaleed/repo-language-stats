@@ -39,12 +39,18 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for repo-language-stats."""
     parser = argparse.ArgumentParser(
         prog="repo-language-stats",
-        description="Compute aggregate programming-language statistics across a GitHub user's repositories.",
+        description="Compute aggregate programming-language statistics across a GitHub user's repositories or for a single repository.",
     )
 
     parser.add_argument(
-        "username",
-        help="GitHub username whose repositories will be scanned.",
+        "target",
+        metavar="TARGET",
+        help="GitHub username or single repository in 'owner/repo' format to scan.",
+    )
+    parser.add_argument(
+        "--repo",
+        default=None,
+        help="Specific repository name to scan (when TARGET is an owner/username).",
     )
     parser.add_argument(
         "--token",
@@ -146,28 +152,25 @@ def configure_logging(verbosity: int) -> None:
     )
 
 
-def scan_user(
-    username: str,
+def scan_repositories(
+    target_name: str,
+    repos: Sequence[RepoInfo],
     client: GitHubAPIClient,
     filter_config: TreeFilterConfig | None = None,
-    include_forks: bool = False,
     ipynb_language: str | None = None,
     progress: Progress | None = None,
 ) -> AggregateStats:
-    """Scan repositories for a GitHub user and compute language statistics."""
+    """Scan a sequence of repositories and compute aggregated language statistics."""
     cfg = filter_config or TreeFilterConfig()
-    accumulator = StatsAccumulator(username=username)
-
-    logger.info("Listing repositories for user %s...", username)
-    repos = client.list_repos(username=username, include_forks=include_forks)
+    accumulator = StatsAccumulator(username=target_name)
 
     if not repos:
-        logger.warning("No repositories found for user %s.", username)
+        logger.warning("No repositories found to scan for %s.", target_name)
         return accumulator.finalize()
 
     task_id = None
     if progress:
-        task_id = progress.add_task(f"[cyan]Scanning {username}'s repositories...", total=len(repos))
+        task_id = progress.add_task(f"[cyan]Scanning {target_name}...", total=len(repos))
 
     for repo in repos:
         logger.info("Scanning repository %s/%s (branch: %s)...", repo.owner, repo.name, repo.default_branch)
@@ -235,12 +238,75 @@ def scan_user(
     return accumulator.finalize()
 
 
+def scan_user(
+    username: str,
+    client: GitHubAPIClient,
+    filter_config: TreeFilterConfig | None = None,
+    include_forks: bool = False,
+    ipynb_language: str | None = None,
+    progress: Progress | None = None,
+) -> AggregateStats:
+    """Scan all repositories for a GitHub user and compute language statistics."""
+    logger.info("Listing repositories for user %s...", username)
+    repos = client.list_repos(username=username, include_forks=include_forks)
+    return scan_repositories(
+        target_name=username,
+        repos=repos,
+        client=client,
+        filter_config=filter_config,
+        ipynb_language=ipynb_language,
+        progress=progress,
+    )
+
+
+def scan_single_repo(
+    owner: str,
+    repo_name: str,
+    client: GitHubAPIClient,
+    filter_config: TreeFilterConfig | None = None,
+    ipynb_language: str | None = None,
+    progress: Progress | None = None,
+) -> AggregateStats:
+    """Scan a single repository and compute language statistics."""
+    full_name = f"{owner}/{repo_name}"
+    logger.info("Fetching repository metadata for %s...", full_name)
+    repo = client.get_repo(owner=owner, repo=repo_name)
+    if not repo:
+        logger.warning("Repository %s not found or inaccessible.", full_name)
+        return AggregateStats(username=full_name)
+
+    return scan_repositories(
+        target_name=full_name,
+        repos=[repo],
+        client=client,
+        filter_config=filter_config,
+        ipynb_language=ipynb_language,
+        progress=progress,
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Main CLI entry point."""
     parser = build_parser()
     args = parser.parse_args(argv)
 
     configure_logging(args.verbose)
+
+    # Determine whether target is a single repo (owner/repo or --repo flag) or a user
+    target_str = args.target.strip()
+    if "/" in target_str:
+        parts = target_str.split("/", 1)
+        owner = parts[0].strip()
+        repo_name = parts[1].strip()
+        is_single_repo = True
+    elif args.repo:
+        owner = target_str
+        repo_name = args.repo.strip()
+        is_single_repo = True
+    else:
+        owner = target_str
+        repo_name = None
+        is_single_repo = False
 
     filter_cfg = TreeFilterConfig(
         include_generated=args.include_generated,
@@ -255,6 +321,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         with GitHubAPIClient(token=args.token) as client:
+            if is_single_repo and repo_name:
+                scan_action = lambda prog: scan_single_repo(
+                    owner=owner,
+                    repo_name=repo_name,
+                    client=client,
+                    filter_config=filter_cfg,
+                    ipynb_language=args.ipynb_language,
+                    progress=prog,
+                )
+            else:
+                scan_action = lambda prog: scan_user(
+                    username=owner,
+                    client=client,
+                    filter_config=filter_cfg,
+                    include_forks=args.include_forks,
+                    ipynb_language=args.ipynb_language,
+                    progress=prog,
+                )
+
             if show_progress:
                 with Progress(
                     SpinnerColumn(),
@@ -264,23 +349,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     TimeElapsedColumn(),
                     console=console,
                 ) as progress:
-                    stats = scan_user(
-                        username=args.username,
-                        client=client,
-                        filter_config=filter_cfg,
-                        include_forks=args.include_forks,
-                        ipynb_language=args.ipynb_language,
-                        progress=progress,
-                    )
+                    stats = scan_action(progress)
             else:
-                stats = scan_user(
-                    username=args.username,
-                    client=client,
-                    filter_config=filter_cfg,
-                    include_forks=args.include_forks,
-                    ipynb_language=args.ipynb_language,
-                    progress=None,
-                )
+                stats = scan_action(None)
 
         if args.output:
             output_str = render_report(

@@ -35,6 +35,42 @@ def test_list_repos_single_page():
 
 
 @respx.mock
+def test_get_repo_success():
+    respx.get("https://api.github.com/repos/octocat/my-repo").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "my-repo",
+                "owner": {"login": "octocat"},
+                "default_branch": "main",
+                "fork": False,
+                "private": False,
+                "size": 120,
+            },
+        )
+    )
+
+    with GitHubAPIClient() as client:
+        repo = client.get_repo("octocat", "my-repo")
+        assert repo is not None
+        assert repo.name == "my-repo"
+        assert repo.owner == "octocat"
+        assert repo.default_branch == "main"
+        assert repo.is_fork is False
+
+
+@respx.mock
+def test_get_repo_not_found():
+    respx.get("https://api.github.com/repos/octocat/nonexistent").mock(
+        return_value=httpx.Response(404)
+    )
+
+    with GitHubAPIClient() as client:
+        repo = client.get_repo("octocat", "nonexistent")
+        assert repo is None
+
+
+@respx.mock
 def test_list_repos_pagination():
     page1 = json.loads((FIXTURES_DIR / "repos_page1.json").read_text(encoding="utf-8"))
     page2 = json.loads((FIXTURES_DIR / "repos_page2.json").read_text(encoding="utf-8"))

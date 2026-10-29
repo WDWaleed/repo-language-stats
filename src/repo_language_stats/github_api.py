@@ -233,6 +233,23 @@ class GitHubAPIClient:
 
         return repos
 
+    def get_repo(
+        self,
+        owner: str,
+        repo: str,
+    ) -> RepoInfo | None:
+        """Retrieve repository metadata for a single repository."""
+        endpoint = f"repos/{owner}/{repo}"
+        resp = self._request("GET", endpoint)
+        if not resp:
+            return None
+
+        data = resp.json()
+        if not isinstance(data, dict):
+            return None
+
+        return RepoInfo.from_api_dict(data)
+
     def get_tree(
         self,
         owner: str,
