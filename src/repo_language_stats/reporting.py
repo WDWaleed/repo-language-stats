@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import sys
 from typing import Any
 
 from rich.console import Console
@@ -82,22 +83,23 @@ def build_rich_table(
     return table
 
 
-def format_table(
+def print_table(
     stats: AggregateStats,
     per_repo: bool = False,
     show_files: bool = False,
-) -> str:
-    """Format AggregateStats into a styled rich terminal table string."""
-    console = Console(record=True, width=100)
+    console: Console | None = None,
+) -> None:
+    """Print beautifully formatted Rich tables directly to the console."""
+    con = console or Console()
 
-    console.print(f"\n[bold]GitHub Language Statistics for:[/bold] [green]{stats.username}[/green]")
-    console.print(f"Repositories scanned: {stats.repos_scanned} │ Skipped: {stats.repos_skipped}\n")
+    con.print(f"\n[bold]GitHub Language Statistics for:[/bold] [green]{stats.username}[/green]")
+    con.print(f"Repositories scanned: {stats.repos_scanned} │ Skipped: {stats.repos_skipped}\n")
 
     if per_repo and stats.per_repo:
         for repo in stats.per_repo:
-            console.print(f"[bold yellow]Repository: {repo.repo_name}[/bold yellow]")
+            con.print(f"[bold yellow]Repository: {repo.repo_name}[/bold yellow]")
             if not repo.languages:
-                console.print("  [italic dim]No eligible source files found.[/italic dim]\n")
+                con.print("  [italic dim]No eligible source files found.[/italic dim]\n")
             else:
                 table = build_rich_table(
                     languages=repo.languages,
@@ -105,10 +107,10 @@ def format_table(
                     total_lines=repo.total_lines,
                     show_files=show_files,
                 )
-                console.print(table)
-                console.print()
+                con.print(table)
+                con.print()
 
-        console.print("[bold underline cyan]Aggregate Summary (All Repositories):[/bold underline cyan]")
+        con.print("[bold underline cyan]Aggregate Summary (All Repositories):[/bold underline cyan]")
 
     # Aggregate table
     agg_table = build_rich_table(
@@ -117,10 +119,20 @@ def format_table(
         total_lines=stats.total_lines,
         show_files=show_files,
     )
-    console.print(agg_table)
-    console.print("\n[dim]Note: Notebook (.ipynb) statistics count only code cell source text.[/dim]\n")
+    con.print(agg_table)
+    con.print("\n[dim]Note: Notebook (.ipynb) statistics count only code cell source text.[/dim]\n")
 
-    return console.export_text()
+
+def format_table(
+    stats: AggregateStats,
+    per_repo: bool = False,
+    show_files: bool = False,
+) -> str:
+    """Format AggregateStats into a styled rich terminal table string without writing to stdout."""
+    buffer = io.StringIO()
+    console = Console(file=buffer, width=100, no_color=True)
+    print_table(stats, per_repo=per_repo, show_files=show_files, console=console)
+    return buffer.getvalue()
 
 
 def format_json(
@@ -237,4 +249,23 @@ def render_report(
         return format_csv(stats, per_repo=per_repo, show_files=show_files)
     else:
         return format_table(stats, per_repo=per_repo, show_files=show_files)
+
+
+def display_report(
+    stats: AggregateStats,
+    fmt: str = "table",
+    per_repo: bool = False,
+    show_files: bool = False,
+    console: Console | None = None,
+) -> None:
+    """Display the report to the user in the specified format."""
+    fmt_clean = fmt.strip().lower()
+    if fmt_clean == "json":
+        sys.stdout.write(format_json(stats, per_repo=per_repo, show_files=show_files) + "\n")
+        sys.stdout.flush()
+    elif fmt_clean == "csv":
+        sys.stdout.write(format_csv(stats, per_repo=per_repo, show_files=show_files))
+        sys.stdout.flush()
+    else:
+        print_table(stats, per_repo=per_repo, show_files=show_files, console=console)
 

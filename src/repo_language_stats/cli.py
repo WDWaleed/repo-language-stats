@@ -30,7 +30,7 @@ from repo_language_stats.discovery import (
 from repo_language_stats.github_api import GitHubAPIClient
 from repo_language_stats.language import classify, is_notebook
 from repo_language_stats.notebook import parse_notebook
-from repo_language_stats.reporting import render_report
+from repo_language_stats.reporting import display_report, render_report
 
 logger = logging.getLogger("repo_language_stats")
 
@@ -269,19 +269,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                     progress=None,
                 )
 
-        output_str = render_report(
-            stats=stats,
-            fmt=args.format,
-            per_repo=args.per_repo,
-            show_files=args.show_files,
-        )
-
         if args.output:
+            output_str = render_report(
+                stats=stats,
+                fmt=args.format,
+                per_repo=args.per_repo,
+                show_files=args.show_files,
+            )
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(output_str, encoding="utf-8")
         else:
-            sys.stdout.write(output_str)
-            sys.stdout.flush()
+            display_report(
+                stats=stats,
+                fmt=args.format,
+                per_repo=args.per_repo,
+                show_files=args.show_files,
+            )
 
         return 0
 

@@ -15,9 +15,11 @@ from repo_language_stats.counting import (
     RepoStats,
 )
 from repo_language_stats.reporting import (
+    display_report,
     format_csv,
     format_json,
     format_table,
+    print_table,
     render_report,
 )
 
@@ -216,6 +218,24 @@ def test_cli_end_to_end_table(capsys):
     assert "GitHub Language Statistics for: octocat" in captured.out
     assert "Python" in captured.out
     assert "Jupyter (Python)" in captured.out
+    # Ensure header only appears ONCE, not twice
+    assert captured.out.count("GitHub Language Statistics for: octocat") == 1
+    assert captured.out.count("Repositories scanned: 1 │ Skipped: 0") == 1
+
+
+def test_display_report_json_csv_and_table(sample_stats: AggregateStats, capsys):
+    display_report(sample_stats, fmt="json")
+    captured = capsys.readouterr()
+    assert captured.out.startswith("{")
+
+    display_report(sample_stats, fmt="csv")
+    captured = capsys.readouterr()
+    assert captured.out.startswith("language,bytes")
+
+    display_report(sample_stats, fmt="table")
+    captured = capsys.readouterr()
+    assert "GitHub Language Statistics for: octocat" in captured.out
+    assert captured.out.count("GitHub Language Statistics for: octocat") == 1
 
 
 @respx.mock

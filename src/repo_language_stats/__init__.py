@@ -43,9 +43,11 @@ from repo_language_stats.notebook import (
 )
 from repo_language_stats.reporting import (
     build_rich_table,
+    display_report,
     format_csv,
     format_json,
     format_table,
+    print_table,
     render_report,
 )
 
@@ -76,10 +78,12 @@ __all__ = [
     "RepoInfo",
     "GitHubAPIClient",
     "build_rich_table",
+    "print_table",
     "format_table",
     "format_json",
     "format_csv",
     "render_report",
+    "display_report",
     "build_parser",
     "scan_user",
     "main",

@@ -19,3 +19,6 @@ htmlcov/
 implementation.md
 
 issues.md
+
+.env
+.env.local
