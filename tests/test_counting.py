@@ -162,3 +162,32 @@ def test_stats_accumulator_consecutive_start_repo():
     assert len(res.per_repo) == 2
     assert res.per_repo[0].repo_name == "repo-a"
     assert res.per_repo[1].repo_name == "repo-b"
+
+
+def test_language_grouping_normalization():
+    from repo_language_stats.counting import normalize_language_grouping
+
+    assert normalize_language_grouping("TSX") == "TypeScript"
+    assert normalize_language_grouping("Jupyter (Python)") == "Python"
+    assert normalize_language_grouping("Python") == "Python"
+    assert normalize_language_grouping("TypeScript") == "TypeScript"
+
+
+def test_stats_accumulator_language_groupings():
+    acc = StatsAccumulator(username="octocat")
+    acc.start_repo("repo-unified")
+    acc.add_file("TypeScript", "const a: number = 1;\n")
+    acc.add_file("TSX", "export const Comp = () => <div />;\n")
+    acc.add_file("Python", "print('normal py')\n")
+    acc.add_stats("Jupyter (Python)", bytes_count=50, lines_count=5, files_count=1)
+    res = acc.finalize()
+
+    # TSX should be combined with TypeScript
+    assert "TypeScript" in res.aggregate
+    assert "TSX" not in res.aggregate
+    assert res.aggregate["TypeScript"].file_count == 2
+
+    # Jupyter (Python) should be combined with Python
+    assert "Python" in res.aggregate
+    assert "Jupyter (Python)" not in res.aggregate
+    assert res.aggregate["Python"].file_count == 2

@@ -99,7 +99,7 @@ PRIMARY_EXTENSION_OVERRIDES: dict[str, str] = {
     ".cs": "C#",
     ".sql": "SQL",
     ".ts": "TypeScript",
-    ".tsx": "TSX",
+    ".tsx": "TypeScript",
     ".h": "C",
     ".hpp": "C++",
     ".r": "R",
@@ -116,6 +116,7 @@ PRIMARY_EXTENSION_OVERRIDES: dict[str, str] = {
 # Language naming adjustments for common CLI display expectations
 LANGUAGE_NAME_OVERRIDES: dict[str, str] = {
     "Makefile": "Make",
+    "TSX": "TypeScript",
 }
 
 

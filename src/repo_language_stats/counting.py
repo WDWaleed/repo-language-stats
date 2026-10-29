@@ -107,19 +107,32 @@ def calculate_percentage(
     return val
 
 
+# Canonical language grouping mappings
+LANGUAGE_GROUPINGS: dict[str, str] = {
+    "TSX": "TypeScript",
+    "Jupyter (Python)": "Python",
+}
+
+
+def normalize_language_grouping(language: str) -> str:
+    """Normalize language name to target display group (e.g. TSX -> TypeScript, Jupyter (Python) -> Python)."""
+    return LANGUAGE_GROUPINGS.get(language, language)
+
+
 def aggregate_stats(stats_list: Sequence[LanguageStats]) -> dict[str, LanguageStats]:
     """Aggregate a sequence of LanguageStats into a dictionary keyed by language name."""
     result: dict[str, LanguageStats] = {}
     for item in stats_list:
-        if item.language not in result:
-            result[item.language] = LanguageStats(
-                language=item.language,
+        lang = normalize_language_grouping(item.language)
+        if lang not in result:
+            result[lang] = LanguageStats(
+                language=lang,
                 total_bytes=item.total_bytes,
                 total_lines=item.total_lines,
                 file_count=item.file_count,
             )
         else:
-            result[item.language].add(
+            result[lang].add(
                 bytes_count=item.total_bytes,
                 lines_count=item.total_lines,
                 files_count=item.file_count,
@@ -165,10 +178,12 @@ class StatsAccumulator:
         repo_name: str | None = None,
     ) -> None:
         """Add pre-computed metrics to aggregate and per-repository breakdown."""
+        target_language = normalize_language_grouping(language)
+
         # Add to aggregate
-        if language not in self.aggregate:
-            self.aggregate[language] = LanguageStats(language=language)
-        self.aggregate[language].add(bytes_count, lines_count, files_count)
+        if target_language not in self.aggregate:
+            self.aggregate[target_language] = LanguageStats(language=target_language)
+        self.aggregate[target_language].add(bytes_count, lines_count, files_count)
 
         # Target repo resolution
         target_repo: RepoStats | None = None
@@ -186,9 +201,9 @@ class StatsAccumulator:
             target_repo = self._current_repo
 
         if target_repo is not None:
-            if language not in target_repo.languages:
-                target_repo.languages[language] = LanguageStats(language=language)
-            target_repo.languages[language].add(bytes_count, lines_count, files_count)
+            if target_language not in target_repo.languages:
+                target_repo.languages[target_language] = LanguageStats(language=target_language)
+            target_repo.languages[target_language].add(bytes_count, lines_count, files_count)
 
     def finish_repo(self, skipped: bool = False) -> None:
         """Mark the current repository as completed or skipped."""

@@ -30,6 +30,28 @@ def _get_data_path(filename: str) -> Path:
         return path
 
 
+DEFAULT_EXCLUDED_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".csv",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".svg",
+        ".env",
+    }
+)
+
+DEFAULT_EXCLUDED_LANGUAGES: frozenset[str] = frozenset(
+    {
+        "CSV",
+        "YAML",
+        "TOML",
+        "SVG",
+        "Dotenv",
+    }
+)
+
+
 @dataclass
 class TreeFilterConfig:
     """Configuration for filtering repository file trees."""
@@ -37,6 +59,7 @@ class TreeFilterConfig:
     include_generated: bool = False
     include_vendored: bool = False
     include_docs: bool = False
+    include_all: bool = False
     exclude_patterns: list[str] = field(default_factory=list)
 
 
@@ -130,6 +153,25 @@ class FileDiscoveryFilter:
         ext = Path(path).suffix.lower()
         return ext in {".md", ".rst", ".txt", ".adoc", ".asciidoc"}
 
+    def is_default_excluded(self, path: str) -> bool:
+        """Check if a path matches file formats excluded by default (csv, yaml, toml, svg, dotenv)."""
+        norm_path = path.replace("\\", "/")
+        p = Path(norm_path)
+        filename = p.name.lower()
+        ext = p.suffix.lower()
+
+        if ext in DEFAULT_EXCLUDED_EXTENSIONS:
+            return True
+
+        if filename == ".env" or filename.startswith(".env.") or filename.endswith(".env"):
+            return True
+
+        lang = classify(norm_path)
+        if lang in DEFAULT_EXCLUDED_LANGUAGES:
+            return True
+
+        return False
+
     def is_eligible(
         self,
         path: str,
@@ -147,8 +189,12 @@ class FileDiscoveryFilter:
 
         cfg = config or TreeFilterConfig()
 
-        # Check custom exclusion globs
+        # Check default exclusions (csv, yaml, toml, svg, dotenv) unless --all is set
         norm_path = path.replace("\\", "/")
+        if not cfg.include_all and self.is_default_excluded(norm_path):
+            return False
+
+        # Check custom exclusion globs
         filename = Path(norm_path).name
         for pattern in cfg.exclude_patterns:
             if fnmatch(norm_path, pattern) or fnmatch(filename, pattern):

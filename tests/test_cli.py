@@ -217,7 +217,8 @@ def test_cli_end_to_end_table(capsys):
     captured = capsys.readouterr()
     assert "GitHub Language Statistics for: octocat" in captured.out
     assert "Python" in captured.out
-    assert "Jupyter (Python)" in captured.out
+    # Python and Jupyter (Python) are counted together under Python
+    assert "Jupyter (Python)" not in captured.out
     # Ensure header only appears ONCE, not twice
     assert captured.out.count("GitHub Language Statistics for: octocat") == 1
     assert captured.out.count("Repositories scanned: 1 │ Skipped: 0") == 1
@@ -302,4 +303,75 @@ def test_cli_no_repos_found(capsys):
     assert data["username"] == "empty_user"
     assert data["repos_scanned"] == 0
     assert data["languages"] == []
+
+
+@respx.mock
+def test_cli_all_flag_includes_default_excluded(capsys):
+    respx.get("https://api.github.com/users/octocat/repos", params={"per_page": "100"}).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "name": "sample-repo",
+                    "owner": {"login": "octocat"},
+                    "default_branch": "main",
+                    "fork": False,
+                }
+            ],
+        )
+    )
+
+    respx.get("https://api.github.com/repos/octocat/sample-repo/git/trees/main", params={"recursive": "1"}).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "truncated": False,
+                "tree": [
+                    {
+                        "path": "data.csv",
+                        "type": "blob",
+                        "sha": "blob_csv",
+                    },
+                    {
+                        "path": "app.tsx",
+                        "type": "blob",
+                        "sha": "blob_tsx",
+                    },
+                ],
+            },
+        )
+    )
+
+    respx.get("https://api.github.com/repos/octocat/sample-repo/git/blobs/blob_csv").mock(
+        return_value=httpx.Response(
+            200,
+            json={"encoding": "base64", "content": base64.b64encode(b"a,b,c\n1,2,3\n").decode()},
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/sample-repo/git/blobs/blob_tsx").mock(
+        return_value=httpx.Response(
+            200,
+            json={"encoding": "base64", "content": base64.b64encode(b"const x: number = 1;\n").decode()},
+        )
+    )
+
+    # Without --all: data.csv should be excluded
+    ret = main(["octocat", "--format", "json"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    langs = [item["language"] for item in data["languages"]]
+    assert "CSV" not in langs
+    # app.tsx should be counted as TypeScript
+    assert "TypeScript" in langs
+    assert "TSX" not in langs
+
+    # With --all: data.csv should be included
+    ret_all = main(["octocat", "--format", "json", "--all"])
+    assert ret_all == 0
+    captured_all = capsys.readouterr()
+    data_all = json.loads(captured_all.out)
+    langs_all = [item["language"] for item in data_all["languages"]]
+    assert "CSV" in langs_all
+    assert "TypeScript" in langs_all
 

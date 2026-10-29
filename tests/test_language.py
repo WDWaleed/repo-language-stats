@@ -77,7 +77,7 @@ def test_top_20_extensions():
         "file.js": "JavaScript",
         "file.ts": "TypeScript",
         "file.jsx": "JavaScript",
-        "file.tsx": "TSX",
+        "file.tsx": "TypeScript",
         "file.c": "C",
         "file.cpp": "C++",
         "file.h": "C",
@@ -97,6 +97,11 @@ def test_top_20_extensions():
     }
     for filename, expected_lang in expected_mappings.items():
         assert classify(filename) == expected_lang, f"Failed for {filename}: expected {expected_lang}, got {classify(filename)}"
+
+
+def test_tsx_classified_as_typescript():
+    assert classify("component.tsx") == "TypeScript"
+    assert classify("src/ui/Button.tsx") == "TypeScript"
 
 
 def test_language_types():

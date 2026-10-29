@@ -75,6 +75,30 @@ def test_documentation_excluded_and_included():
     assert is_eligible("docs/guide.rst", config=cfg) is True
 
 
+def test_default_excluded_formats():
+    # csv, yaml, toml, svg, dotenv excluded by default
+    assert is_eligible("data.csv") is False
+    assert is_eligible("config.yaml") is False
+    assert is_eligible("pipeline.yml") is False
+    assert is_eligible("pyproject.toml") is False
+    assert is_eligible("logo.svg") is False
+    assert is_eligible(".env") is False
+    assert is_eligible(".env.local") is False
+    assert is_eligible("sub/dir/.env.prod") is False
+    assert is_eligible("config.env") is False
+
+
+def test_include_all_flag():
+    cfg = TreeFilterConfig(include_all=True)
+    assert is_eligible("data.csv", config=cfg) is True
+    assert is_eligible("config.yaml", config=cfg) is True
+    assert is_eligible("pipeline.yml", config=cfg) is True
+    assert is_eligible("pyproject.toml", config=cfg) is True
+    assert is_eligible("logo.svg", config=cfg) is True
+    assert is_eligible(".env", config=cfg) is True
+    assert is_eligible(".env.local", config=cfg) is True
+
+
 def test_non_blob_entries_excluded():
     assert is_eligible("src", entry_type="tree") is False
     assert is_eligible("submodule", entry_type="commit") is False

@@ -76,6 +76,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include documentation and prose files (e.g. .md, .rst, .txt).",
     )
     parser.add_argument(
+        "--all",
+        action="store_true",
+        dest="include_all",
+        default=False,
+        help="Include data and configuration files excluded by default (CSV, YAML, TOML, SVG, and Dotenv files).",
+    )
+    parser.add_argument(
         "--exclude-pattern",
         action="append",
         dest="exclude_patterns",
@@ -195,7 +202,12 @@ def scan_user(
                         file_path=f"{repo.name}/{entry.path}",
                     )
                     if nb_res:
-                        lang_name = f"Jupyter ({nb_res.language})" if not nb_res.language.startswith("Jupyter") else nb_res.language
+                        if nb_res.language in ("Python", "Jupyter (Python)"):
+                            lang_name = "Python"
+                        elif not nb_res.language.startswith("Jupyter") and nb_res.language != "Unknown (notebook)":
+                            lang_name = f"Jupyter ({nb_res.language})"
+                        else:
+                            lang_name = nb_res.language
                         accumulator.add_stats(
                             language=lang_name,
                             bytes_count=nb_res.total_bytes,
@@ -234,6 +246,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         include_generated=args.include_generated,
         include_vendored=args.include_vendored,
         include_docs=args.include_docs,
+        include_all=args.include_all,
         exclude_patterns=args.exclude_patterns or [],
     )
 
