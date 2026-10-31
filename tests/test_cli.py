@@ -482,3 +482,170 @@ def test_cli_single_repo_not_found(capsys):
     assert data["repos_scanned"] == 0
     assert data["languages"] == []
 
+
+def test_cli_parser_include_private():
+    parser = build_parser()
+    args_default = parser.parse_args(["octocat"])
+    assert args_default.include_private is False
+
+    args_set = parser.parse_args(["octocat", "--include-private"])
+    assert args_set.include_private is True
+
+
+def test_cli_include_private_missing_token(capsys, monkeypatch):
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    ret = main(["octocat", "--include-private"])
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "Error: --include-private requires a GitHub token. Set GITHUB_TOKEN or pass --token." in captured.err
+
+
+@respx.mock
+def test_cli_include_private_invalid_token(capsys, monkeypatch):
+    respx.get("https://api.github.com/user").mock(
+        return_value=httpx.Response(401, json={"message": "Bad credentials"})
+    )
+    ret = main(["octocat", "--include-private", "--token", "bad_token"])
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "Error: Could not verify token. Ensure your GITHUB_TOKEN is valid." in captured.err
+
+
+@respx.mock
+def test_cli_include_private_mismatched_user(capsys):
+    respx.get("https://api.github.com/user").mock(
+        return_value=httpx.Response(200, json={"login": "otheruser"})
+    )
+    ret = main(["octocat", "--include-private", "--token", "my_token"])
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "Error: --include-private can only scan your own account. Token belongs to 'otheruser' but target is 'octocat'." in captured.err
+
+
+@respx.mock
+def test_cli_include_private_success(capsys):
+    respx.get("https://api.github.com/user").mock(
+        return_value=httpx.Response(200, json={"login": "octocat"})
+    )
+    respx.get("https://api.github.com/user/repos", params={"per_page": "100", "type": "owner", "sort": "updated"}).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "name": "secret-project",
+                    "owner": {"login": "octocat"},
+                    "default_branch": "main",
+                    "fork": False,
+                    "private": True,
+                }
+            ],
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/secret-project/git/trees/main", params={"recursive": "1"}).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "truncated": False,
+                "tree": [
+                    {
+                        "path": "secret.py",
+                        "type": "blob",
+                        "sha": "blob_secret_py",
+                    }
+                ],
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/secret-project/git/blobs/blob_secret_py").mock(
+        return_value=httpx.Response(
+            200,
+            json={"encoding": "base64", "content": base64.b64encode(b"print('secret')\n").decode()},
+        )
+    )
+
+    ret = main(["octocat", "--include-private", "--token", "valid_token", "--format", "json"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["username"] == "octocat"
+    assert data["repos_scanned"] == 1
+    assert data["languages"][0]["language"] == "Python"
+
+
+@respx.mock
+def test_cli_include_private_warns_zero_private(capsys, caplog):
+    respx.get("https://api.github.com/user").mock(
+        return_value=httpx.Response(200, json={"login": "octocat"})
+    )
+    respx.get("https://api.github.com/user/repos", params={"per_page": "100", "type": "owner", "sort": "updated"}).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "name": "public-only",
+                    "owner": {"login": "octocat"},
+                    "default_branch": "main",
+                    "fork": False,
+                    "private": False,
+                }
+            ],
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/public-only/git/trees/main", params={"recursive": "1"}).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "truncated": False,
+                "tree": [
+                    {
+                        "path": "public.py",
+                        "type": "blob",
+                        "sha": "blob_pub_py",
+                    }
+                ],
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/public-only/git/blobs/blob_pub_py").mock(
+        return_value=httpx.Response(
+            200,
+            json={"encoding": "base64", "content": base64.b64encode(b"print('public')\n").decode()},
+        )
+    )
+
+    with caplog.at_level(logging.WARNING):
+        ret = main(["octocat", "--include-private", "--token", "valid_token", "--format", "json"])
+        assert ret == 0
+        assert "No private repositories found for octocat" in caplog.text
+
+
+@respx.mock
+def test_cli_include_private_redundant_in_single_repo(capsys, caplog):
+    respx.get("https://api.github.com/repos/octocat/single-repo").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "single-repo",
+                "owner": {"login": "octocat"},
+                "default_branch": "main",
+                "fork": False,
+                "private": True,
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/single-repo/git/trees/main", params={"recursive": "1"}).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "truncated": False,
+                "tree": [],
+            },
+        )
+    )
+
+    with caplog.at_level(logging.WARNING):
+        ret = main(["octocat/single-repo", "--include-private", "--token", "valid_token", "--format", "json"])
+        assert ret == 0
+        assert "--include-private is not needed for single-repo mode" in caplog.text
+
+

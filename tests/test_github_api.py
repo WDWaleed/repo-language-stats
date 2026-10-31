@@ -361,3 +361,86 @@ def test_blob_formats_and_invalid_base64(caplog):
             res_bad = client.get_blob("octocat", "repo1", "corrupt")
             assert res_bad is None
             assert "Failed to decode base64 blob" in caplog.text
+
+
+@respx.mock
+def test_get_authenticated_user_success():
+    respx.get("https://api.github.com/user").mock(
+        return_value=httpx.Response(200, json={"login": "WDWaleed", "id": 12345})
+    )
+
+    with GitHubAPIClient(token="ghp_test_token") as client:
+        user = client.get_authenticated_user()
+        assert user == "WDWaleed"
+
+
+@respx.mock
+def test_get_authenticated_user_unauthorized():
+    respx.get("https://api.github.com/user").mock(
+        return_value=httpx.Response(401, json={"message": "Bad credentials"})
+    )
+
+    with GitHubAPIClient(token="ghp_invalid") as client:
+        user = client.get_authenticated_user()
+        assert user is None
+
+
+@respx.mock
+def test_get_authenticated_user_empty_or_malformed():
+    respx.get("https://api.github.com/user").mock(
+        return_value=httpx.Response(200, json={})
+    )
+
+    with GitHubAPIClient(token="ghp_test_token") as client:
+        user = client.get_authenticated_user()
+        assert user is None
+
+
+@respx.mock
+def test_list_repos_include_private():
+    respx.get(
+        "https://api.github.com/user/repos",
+        params={"per_page": "100", "type": "owner", "sort": "updated"},
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "name": "public-repo",
+                    "owner": {"login": "WDWaleed"},
+                    "default_branch": "main",
+                    "fork": False,
+                    "private": False,
+                },
+                {
+                    "name": "private-repo",
+                    "owner": {"login": "WDWaleed"},
+                    "default_branch": "main",
+                    "fork": False,
+                    "private": True,
+                },
+                {
+                    "name": "private-fork",
+                    "owner": {"login": "WDWaleed"},
+                    "default_branch": "main",
+                    "fork": True,
+                    "private": True,
+                },
+            ],
+        )
+    )
+
+    with GitHubAPIClient(token="ghp_test_token") as client:
+        # include_forks=False (default)
+        repos = client.list_repos("WDWaleed", include_forks=False, include_private=True)
+        assert len(repos) == 2
+        assert repos[0].name == "public-repo"
+        assert repos[0].is_private is False
+        assert repos[1].name == "private-repo"
+        assert repos[1].is_private is True
+
+        # include_forks=True
+        all_repos = client.list_repos("WDWaleed", include_forks=True, include_private=True)
+        assert len(all_repos) == 3
+        assert [r.name for r in all_repos] == ["public-repo", "private-repo", "private-fork"]
+

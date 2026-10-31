@@ -133,6 +133,10 @@ class GitHubAPIClient:
                 if resp.status_code == 200:
                     return resp
 
+                if resp.status_code == 401:
+                    logger.warning("Authentication failed / unauthorized (401): %s", url)
+                    return None
+
                 if resp.status_code == 404:
                     logger.warning("Resource not found (404): %s", url)
                     return None
@@ -189,15 +193,30 @@ class GitHubAPIClient:
                 logger.warning("Network failure (%s). Retrying in %.1fs (%d/%d)...", exc, sleep_sec, retries, self.max_retries)
                 self._sleep(sleep_sec)
 
+    def get_authenticated_user(self) -> str | None:
+        """Return the login username of the currently authenticated token."""
+        resp = self._request("GET", "user")
+        if not resp:
+            return None
+        data = resp.json()
+        if not isinstance(data, dict):
+            return None
+        return data.get("login")
+
     def list_repos(
         self,
         username: str,
         include_forks: bool = False,
+        include_private: bool = False,
     ) -> list[RepoInfo]:
         """List repositories for a given user, following pagination."""
         repos: list[RepoInfo] = []
-        endpoint: str | None = f"users/{username}/repos"
-        params: dict[str, Any] | None = {"per_page": 100}
+        if include_private:
+            endpoint: str | None = "user/repos"
+            params: dict[str, Any] | None = {"per_page": 100, "type": "owner", "sort": "updated"}
+        else:
+            endpoint: str | None = f"users/{username}/repos"
+            params: dict[str, Any] | None = {"per_page": 100}
         visited_urls: set[str] = set()
 
         while endpoint:

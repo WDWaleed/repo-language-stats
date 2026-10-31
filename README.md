@@ -170,6 +170,12 @@ repo-language-stats WDWaleed --all
 repo-language-stats WDWaleed --include-forks
 ```
 
+#### Include Private Repositories
+Include private repositories owned by your account in the statistics (requires a GitHub token with `repo` scope for classic PAT or `Contents: Read` permission for fine-grained PAT; only works when scanning your own account):
+```bash
+repo-language-stats WDWaleed --include-private
+```
+
 #### Include Documentation, Vendored, or Generated Files
 ```bash
 repo-language-stats WDWaleed --include-docs --include-vendored --include-generated
@@ -213,8 +219,9 @@ repo-language-stats WDWaleed -vv  # DEBUG logging (shows API endpoints, rate lim
 
 ```
 usage: repo-language-stats [-h] [--repo REPO] [--token TOKEN]
-                           [--include-forks] [--include-generated]
-                           [--include-vendored] [--include-docs] [--all]
+                           [--include-forks] [--include-private]
+                           [--include-generated] [--include-vendored]
+                           [--include-docs] [--all]
                            [--exclude-pattern EXCLUDE_PATTERNS] [--per-repo]
                            [--show-files] [--format {table,json,csv}]
                            [-o OUTPUT] [--ipynb-language IPYNB_LANGUAGE] [-v]
@@ -229,6 +236,7 @@ usage: repo-language-stats [-h] [--repo REPO] [--token TOKEN]
 | `--repo REPO` | Specific repository name to scan when `TARGET` is a username. |
 | `--token TOKEN` | GitHub personal access token (defaults to `GITHUB_TOKEN` environment variable). |
 | `--include-forks` | Include forked repositories in the scan (excluded by default). |
+| `--include-private` | Include private repositories (requires a token with `repo` scope; only works when scanning your own account). |
 | `--include-generated` | Include generated, minified, and lock files (e.g. `*.min.js`, `package-lock.json`). |
 | `--include-vendored` | Include vendored dependencies (e.g. `vendor/`, `node_modules/`). |
 | `--include-docs` | Include documentation and prose files (`.md`, `.rst`, `.txt`). |

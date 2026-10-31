@@ -64,6 +64,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Include forked repositories in the statistics (excluded by default).",
     )
     parser.add_argument(
+        "--include-private",
+        action="store_true",
+        default=False,
+        help="Include private repositories (requires a token with 'repo' scope; "
+             "only works when scanning your own account).",
+    )
+    parser.add_argument(
         "--include-generated",
         action="store_true",
         default=False,
@@ -173,7 +180,13 @@ def scan_repositories(
         task_id = progress.add_task(f"[cyan]Scanning {target_name}...", total=len(repos))
 
     for repo in repos:
-        logger.info("Scanning repository %s/%s (branch: %s)...", repo.owner, repo.name, repo.default_branch)
+        logger.info(
+            "Scanning %s repository %s/%s (branch: %s)...",
+            "private" if repo.is_private else "public",
+            repo.owner,
+            repo.name,
+            repo.default_branch,
+        )
         accumulator.start_repo(repo.name)
 
         try:
@@ -243,12 +256,26 @@ def scan_user(
     client: GitHubAPIClient,
     filter_config: TreeFilterConfig | None = None,
     include_forks: bool = False,
+    include_private: bool = False,
     ipynb_language: str | None = None,
     progress: Progress | None = None,
 ) -> AggregateStats:
     """Scan all repositories for a GitHub user and compute language statistics."""
     logger.info("Listing repositories for user %s...", username)
-    repos = client.list_repos(username=username, include_forks=include_forks)
+    repos = client.list_repos(
+        username=username,
+        include_forks=include_forks,
+        include_private=include_private,
+    )
+    if include_private and repos:
+        private_count = sum(1 for r in repos if r.is_private)
+        if private_count == 0:
+            logger.warning(
+                "No private repositories found for %s. "
+                "Ensure your token has the 'repo' scope (classic PAT) "
+                "or Contents: Read permission (fine-grained PAT).",
+                username,
+            )
     return scan_repositories(
         target_name=username,
         repos=repos,
@@ -320,7 +347,36 @@ def main(argv: Sequence[str] | None = None) -> int:
     show_progress = args.format == "table" and args.output is None
 
     try:
+        if args.include_private and not args.token:
+            sys.stderr.write(
+                "Error: --include-private requires a GitHub token. "
+                "Set GITHUB_TOKEN or pass --token.\n"
+            )
+            return 1
+
         with GitHubAPIClient(token=args.token) as client:
+            if args.include_private:
+                if is_single_repo:
+                    logger.warning(
+                        "--include-private is not needed for single-repo mode; "
+                        "private repositories are already accessible if your token has access."
+                    )
+                else:
+                    authenticated_user = client.get_authenticated_user()
+                    if authenticated_user is None:
+                        sys.stderr.write(
+                            "Error: Could not verify token. "
+                            "Ensure your GITHUB_TOKEN is valid.\n"
+                        )
+                        return 1
+
+                    if authenticated_user.lower() != owner.lower():
+                        sys.stderr.write(
+                            f"Error: --include-private can only scan your own account. "
+                            f"Token belongs to '{authenticated_user}' but target is '{owner}'.\n"
+                        )
+                        return 1
+
             if is_single_repo and repo_name:
                 scan_action = lambda prog: scan_single_repo(
                     owner=owner,
@@ -336,6 +392,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     client=client,
                     filter_config=filter_cfg,
                     include_forks=args.include_forks,
+                    include_private=args.include_private,
                     ipynb_language=args.ipynb_language,
                     progress=prog,
                 )
