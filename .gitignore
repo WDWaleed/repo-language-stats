@@ -18,6 +18,7 @@ htmlcov/
 # Planning documents
 implementation.md
 web-implementation.md
+docs/changes_to_commit.md
 
 issues.md
 
