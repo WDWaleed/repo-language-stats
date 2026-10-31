@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import sys
 from typing import Sequence
+from urllib.parse import urlparse
 
 from rich.console import Console
 from rich.progress import (
@@ -45,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "target",
         metavar="TARGET",
-        help="GitHub username or single repository in 'owner/repo' format to scan.",
+        help="GitHub username, repository in 'owner/repo' format, or GitHub URL to scan.",
     )
     parser.add_argument(
         "--repo",
@@ -312,6 +313,45 @@ def scan_single_repo(
     )
 
 
+def normalize_target(target: str) -> str:
+    """Normalize a GitHub username, repository, or URL into a standard target string.
+
+    Supports:
+    - Usernames: 'octocat' -> 'octocat'
+    - Owner/Repo: 'octocat/Hello-World' -> 'octocat/Hello-World'
+    - HTTPS/HTTP URLs: 'https://github.com/octocat/Hello-World' -> 'octocat/Hello-World'
+    - Clone URLs with .git: 'https://github.com/octocat/Hello-World.git' -> 'octocat/Hello-World'
+    - SSH URLs: 'git@github.com:octocat/Hello-World.git' -> 'octocat/Hello-World'
+    - Tree/Blob/Deep URLs: 'https://github.com/octocat/Hello-World/tree/main' -> 'octocat/Hello-World'
+    - User profile URLs: 'https://github.com/octocat' -> 'octocat'
+    """
+    cleaned = target.strip()
+    if not cleaned:
+        return cleaned
+
+    # Handle SSH git URLs: git@github.com:owner/repo(.git)
+    if cleaned.startswith("git@github.com:"):
+        cleaned = cleaned[len("git@github.com:"):]
+    elif cleaned.startswith("github.com/"):
+        cleaned = cleaned[len("github.com/"):]
+    elif "://" in cleaned:
+        parsed = urlparse(cleaned)
+        cleaned = parsed.path.lstrip("/")
+
+    # Strip trailing .git if present
+    if cleaned.endswith(".git"):
+        cleaned = cleaned[:-4]
+
+    # Split path components and strip empty elements
+    parts = [p.strip() for p in cleaned.split("/") if p.strip()]
+    if len(parts) >= 2:
+        return f"{parts[0]}/{parts[1]}"
+    elif len(parts) == 1:
+        return parts[0]
+
+    return cleaned
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Main CLI entry point."""
     parser = build_parser()
@@ -319,8 +359,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     configure_logging(args.verbose)
 
-    # Determine whether target is a single repo (owner/repo or --repo flag) or a user
-    target_str = args.target.strip()
+    # Determine whether target is a single repo (owner/repo, URL, or --repo flag) or a user
+    target_str = normalize_target(args.target)
     if "/" in target_str:
         parts = target_str.split("/", 1)
         owner = parts[0].strip()
@@ -328,7 +368,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         is_single_repo = True
     elif args.repo:
         owner = target_str
-        repo_name = args.repo.strip()
+        cleaned_repo = normalize_target(args.repo)
+        if "/" in cleaned_repo:
+            repo_name = cleaned_repo.split("/", 1)[1]
+        else:
+            repo_name = cleaned_repo
         is_single_repo = True
     else:
         owner = target_str

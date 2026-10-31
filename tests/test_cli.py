@@ -8,7 +8,7 @@ import httpx
 import pytest
 import respx
 
-from repo_language_stats.cli import build_parser, configure_logging, main
+from repo_language_stats.cli import build_parser, configure_logging, main, normalize_target
 from repo_language_stats.counting import (
     AggregateStats,
     LanguageStats,
@@ -647,5 +647,65 @@ def test_cli_include_private_redundant_in_single_repo(capsys, caplog):
         ret = main(["octocat/single-repo", "--include-private", "--token", "valid_token", "--format", "json"])
         assert ret == 0
         assert "--include-private is not needed for single-repo mode" in caplog.text
+
+
+def test_normalize_target():
+    assert normalize_target("octocat") == "octocat"
+    assert normalize_target("octocat/Hello-World") == "octocat/Hello-World"
+    assert normalize_target("https://github.com/AWaleed-Ahmed/Raphael") == "AWaleed-Ahmed/Raphael"
+    assert normalize_target("https://github.com/AWaleed-Ahmed/Raphael/") == "AWaleed-Ahmed/Raphael"
+    assert normalize_target("https://github.com/AWaleed-Ahmed/Raphael.git") == "AWaleed-Ahmed/Raphael"
+    assert normalize_target("http://github.com/AWaleed-Ahmed/Raphael") == "AWaleed-Ahmed/Raphael"
+    assert normalize_target("github.com/AWaleed-Ahmed/Raphael") == "AWaleed-Ahmed/Raphael"
+    assert normalize_target("git@github.com:AWaleed-Ahmed/Raphael.git") == "AWaleed-Ahmed/Raphael"
+    assert normalize_target("https://github.com/AWaleed-Ahmed/Raphael/tree/main/src") == "AWaleed-Ahmed/Raphael"
+    assert normalize_target("https://github.com/AWaleed-Ahmed") == "AWaleed-Ahmed"
+    assert normalize_target("https://github.com/AWaleed-Ahmed/") == "AWaleed-Ahmed"
+    assert normalize_target("   ") == ""
+
+
+@respx.mock
+def test_cli_full_url_target(capsys):
+    respx.get("https://api.github.com/repos/AWaleed-Ahmed/Raphael").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "Raphael",
+                "owner": {"login": "AWaleed-Ahmed"},
+                "default_branch": "main",
+                "fork": False,
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/AWaleed-Ahmed/Raphael/git/trees/main", params={"recursive": "1"}).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "truncated": False,
+                "tree": [
+                    {
+                        "path": "app.py",
+                        "type": "blob",
+                        "sha": "blob_app_py",
+                    }
+                ],
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/AWaleed-Ahmed/Raphael/git/blobs/blob_app_py").mock(
+        return_value=httpx.Response(
+            200,
+            json={"encoding": "base64", "content": base64.b64encode(b"print('Raphael')\n").decode()},
+        )
+    )
+
+    ret = main(["https://github.com/AWaleed-Ahmed/Raphael", "--format", "json"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["username"] == "AWaleed-Ahmed/Raphael"
+    assert data["repos_scanned"] == 1
+    assert data["languages"][0]["language"] == "Python"
+
 
 

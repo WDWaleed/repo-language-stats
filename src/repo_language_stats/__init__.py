@@ -5,6 +5,7 @@ __version__ = "0.1.0"
 from repo_language_stats.cli import (
     build_parser,
     main,
+    normalize_target,
     scan_repositories,
     scan_single_repo,
     scan_user,
@@ -87,6 +88,7 @@ __all__ = [
     "render_report",
     "display_report",
     "build_parser",
+    "normalize_target",
     "scan_user",
     "scan_single_repo",
     "scan_repositories",

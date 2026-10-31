@@ -133,11 +133,14 @@ repo-language-stats WDWaleed
 ```
 
 ### Scan a Single Repository
-You can target an individual repository using either `owner/repo` syntax or the `--repo` flag:
+You can target an individual repository using `owner/repo` syntax, the `--repo` flag, or a full GitHub URL:
 
 ```bash
 # Using owner/repo positional syntax:
 repo-language-stats WDWaleed/repo-language-stats
+
+# Using a full GitHub URL:
+repo-language-stats https://github.com/AWaleed-Ahmed/Raphael
 
 # Using the --repo flag:
 repo-language-stats WDWaleed --repo repo-language-stats
@@ -232,7 +235,7 @@ usage: repo-language-stats [-h] [--repo REPO] [--token TOKEN]
 
 | Option | Description |
 |---|---|
-| `TARGET` | GitHub username (e.g. `WDWaleed`) or single repository in `owner/repo` format (e.g. `WDWaleed/repo-language-stats`). |
+| `TARGET` | GitHub username (e.g. `WDWaleed`), single repository in `owner/repo` format (e.g. `WDWaleed/repo-language-stats`), or full GitHub repository / profile URL (e.g. `https://github.com/AWaleed-Ahmed/Raphael`). |
 | `--repo REPO` | Specific repository name to scan when `TARGET` is a username. |
 | `--token TOKEN` | GitHub personal access token (defaults to `GITHUB_TOKEN` environment variable). |
 | `--include-forks` | Include forked repositories in the scan (excluded by default). |
