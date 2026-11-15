@@ -12,13 +12,10 @@ Planned features and enhancements for `repo-language-stats`.
 
 ## Planned
 
-- **Web Dashboard & SVG Cards** — A self-hosted FastAPI + Next.js web service that periodically scans repositories, generates embeddable SVG language stat cards (bar chart, breakdown table, donut chart), and serves them at stable URLs for use in GitHub profile READMEs.
+- **GitHub Token should be used automatically** whenever available in .env. The --token flag should suffice instead of manually entering the value
 
-- **Organization Scanning** — Scan repositories across an entire GitHub organization rather than just a single user account.
+- **Web Dashboard & SVG Cards** — A self-hosted FastAPI + Next.js web service that periodically scans repositories, generates embeddable SVG language stat cards (bar chart, breakdown table, donut chart), and serves them at stable URLs for use in GitHub profile READMEs.
 
 - **Local Repository Scanning** — Analyse a local Git repository on disk without making any API calls, using the working tree directly.
 
-- **Historical Trends** — Track language statistics over time and visualize how a user's language composition evolves across scans.
-
 - **Language Ignore List** — Allow users to specify languages to exclude from results (e.g., `--ignore-language Shell`), complementing the existing file-level exclusion flags.
-
