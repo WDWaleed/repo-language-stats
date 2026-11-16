@@ -35,10 +35,123 @@ from repo_language_stats.reporting import display_report, render_report
 
 logger = logging.getLogger("repo_language_stats")
 
+_USE_ENV_TOKEN = "__USE_ENV_TOKEN__"
+
+OPTS_WITH_ARG = {
+    "--repo",
+    "--exclude-pattern",
+    "--format",
+    "-o",
+    "--output",
+    "--ipynb-language",
+}
+
+
+def get_env_github_token(env_path: Path | str | None = None) -> str | None:
+    """Read GITHUB_TOKEN from .env file if available, falling back to os.environ."""
+    if env_path is not None:
+        p = Path(env_path)
+        candidates = [p] if p.is_file() else [p / ".env"]
+    else:
+        cur = Path.cwd().resolve()
+        candidates = [cur / ".env"] + [parent / ".env" for parent in cur.parents]
+
+    for env_file in candidates:
+        if env_file.is_file():
+            try:
+                for line in env_file.read_text(encoding="utf-8", errors="replace").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if line.startswith("export "):
+                        line = line[len("export "):].strip()
+                    if "=" not in line:
+                        continue
+                    key, val = line.split("=", 1)
+                    key = key.strip()
+                    val = val.strip()
+                    if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                        val = val[1:-1]
+                    else:
+                        if " #" in val:
+                            val = val.split(" #", 1)[0].strip()
+                    if key == "GITHUB_TOKEN" and val:
+                        return val
+            except OSError:
+                pass
+            if env_path is None:
+                break
+    return os.getenv("GITHUB_TOKEN")
+
+
+class TokenAction(argparse.Action):
+    """Custom action for --token to load from .env when passed without a value."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | None,
+        option_string: str | None = None,
+    ) -> None:
+        if values == _USE_ENV_TOKEN or values is None:
+            token = get_env_github_token()
+            setattr(namespace, self.dest, token)
+        else:
+            setattr(namespace, self.dest, values)
+
+
+def preprocess_token_args(argv: Sequence[str]) -> list[str]:
+    """Preprocess arguments so '--token <target>' correctly attributes <target> as positional TARGET."""
+    new_argv = list(argv)
+    i = 0
+    while i < len(new_argv):
+        if new_argv[i] == "--token":
+            t_idx = i
+            # Check if followed by an argument that does not start with '-'
+            if t_idx + 1 < len(new_argv) and not new_argv[t_idx + 1].startswith("-"):
+                # Count non-flag arguments outside options with args
+                idx = 0
+                free_args: list[tuple[int, str]] = []
+                while idx < len(new_argv):
+                    item = new_argv[idx]
+                    if any(item == opt or item.startswith(opt + "=") for opt in OPTS_WITH_ARG):
+                        if "=" in item:
+                            idx += 1
+                        else:
+                            idx += 2
+                        continue
+                    elif item == "--token":
+                        idx += 1
+                        continue
+                    elif not item.startswith("-"):
+                        free_args.append((idx, item))
+                    idx += 1
+                # If only 1 free arg total, it must be the required target positional!
+                if len(free_args) == 1 and free_args[0][0] == t_idx + 1:
+                    new_argv.insert(t_idx + 1, _USE_ENV_TOKEN)
+                    i += 1
+        i += 1
+    return new_argv
+
+
+class RepoStatsArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser that preprocesses token arguments before parsing."""
+
+    def parse_known_args(
+        self,
+        args: Sequence[str] | None = None,
+        namespace: argparse.Namespace | None = None,
+    ) -> tuple[argparse.Namespace, list[str]]:
+        if args is None:
+            args = sys.argv[1:]
+        args = preprocess_token_args(args)
+        return super().parse_known_args(args, namespace=namespace)
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for repo-language-stats."""
-    parser = argparse.ArgumentParser(
+    parser = RepoStatsArgumentParser(
         prog="repo-language-stats",
         description="Compute aggregate programming-language statistics across a GitHub user's repositories or for a single repository.",
     )
@@ -55,8 +168,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--token",
+        nargs="?",
+        const=_USE_ENV_TOKEN,
         default=os.getenv("GITHUB_TOKEN"),
-        help="GitHub personal access token (defaults to GITHUB_TOKEN environment variable).",
+        action=TokenAction,
+        metavar="TOKEN",
+        help="GitHub personal access token (if passed without a value, automatically uses GITHUB_TOKEN from .env; defaults to GITHUB_TOKEN environment variable).",
     )
     parser.add_argument(
         "--include-forks",
@@ -356,6 +473,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Main CLI entry point."""
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.token == _USE_ENV_TOKEN:
+        args.token = get_env_github_token()
 
     configure_logging(args.verbose)
 

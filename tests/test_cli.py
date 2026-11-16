@@ -8,7 +8,13 @@ import httpx
 import pytest
 import respx
 
-from repo_language_stats.cli import build_parser, configure_logging, main, normalize_target
+from repo_language_stats.cli import (
+    build_parser,
+    configure_logging,
+    get_env_github_token,
+    main,
+    normalize_target,
+)
 from repo_language_stats.counting import (
     AggregateStats,
     LanguageStats,
@@ -706,6 +712,126 @@ def test_cli_full_url_target(capsys):
     assert data["username"] == "AWaleed-Ahmed/Raphael"
     assert data["repos_scanned"] == 1
     assert data["languages"][0]["language"] == "Python"
+
+
+def test_cli_token_flag_without_value_uses_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("GITHUB_TOKEN=token_from_dotenv\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    parser = build_parser()
+    args = parser.parse_args(["octocat", "--token"])
+    assert args.target == "octocat"
+    assert args.token == "token_from_dotenv"
+
+
+def test_cli_token_flag_before_target_uses_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("GITHUB_TOKEN=token_from_dotenv\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    parser = build_parser()
+    args = parser.parse_args(["--token", "octocat"])
+    assert args.target == "octocat"
+    assert args.token == "token_from_dotenv"
+
+
+def test_cli_token_flag_with_explicit_value(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("GITHUB_TOKEN=token_from_dotenv\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    parser = build_parser()
+    args = parser.parse_args(["octocat", "--token", "custom_explicit_token"])
+    assert args.target == "octocat"
+    assert args.token == "custom_explicit_token"
+
+
+def test_cli_token_flag_with_explicit_value_before_target(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("GITHUB_TOKEN=token_from_dotenv\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    parser = build_parser()
+    args = parser.parse_args(["--token", "custom_explicit_token", "octocat"])
+    assert args.target == "octocat"
+    assert args.token == "custom_explicit_token"
+
+
+def test_cli_token_omitted_does_not_read_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("GITHUB_TOKEN=token_from_dotenv\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    parser = build_parser()
+    args = parser.parse_args(["octocat"])
+    assert args.target == "octocat"
+    assert args.token is None
+
+
+def test_cli_token_flag_falls_back_to_environ(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_TOKEN", "env_var_token")
+
+    parser = build_parser()
+    args = parser.parse_args(["octocat", "--token"])
+    assert args.target == "octocat"
+    assert args.token == "env_var_token"
+
+
+def test_get_env_github_token_formats(tmp_path: Path):
+    env_file = tmp_path / ".env"
+
+    # Standard unquoted
+    env_file.write_text("GITHUB_TOKEN=ghp_unquoted123\n", encoding="utf-8")
+    assert get_env_github_token(env_file) == "ghp_unquoted123"
+
+    # Double quotes
+    env_file.write_text('GITHUB_TOKEN="ghp_doublequotes123"\n', encoding="utf-8")
+    assert get_env_github_token(env_file) == "ghp_doublequotes123"
+
+    # Single quotes
+    env_file.write_text("GITHUB_TOKEN='ghp_singlequotes123'\n", encoding="utf-8")
+    assert get_env_github_token(env_file) == "ghp_singlequotes123"
+
+    # Export prefix
+    env_file.write_text("export GITHUB_TOKEN=ghp_export123\n", encoding="utf-8")
+    assert get_env_github_token(env_file) == "ghp_export123"
+
+    # Whitespace and inline comment
+    env_file.write_text("  GITHUB_TOKEN = ghp_whitespace123  # my comment\n", encoding="utf-8")
+    assert get_env_github_token(env_file) == "ghp_whitespace123"
+
+    # Empty token
+    env_file.write_text("GITHUB_TOKEN=\n", encoding="utf-8")
+    assert get_env_github_token(env_file) is None
+
+
+@respx.mock
+def test_cli_main_bare_token_loads_env_for_api_call(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys):
+    env_file = tmp_path / ".env"
+    env_file.write_text("GITHUB_TOKEN=ghp_loaded_from_dotenv\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+
+    user_route = respx.get("https://api.github.com/user").mock(
+        return_value=httpx.Response(200, json={"login": "octocat"})
+    )
+    respx.get("https://api.github.com/user/repos", params={"per_page": "100", "type": "owner", "sort": "updated"}).mock(
+        return_value=httpx.Response(200, json=[])
+    )
+
+    ret = main(["octocat", "--include-private", "--token", "--format", "json"])
+    assert ret == 0
+    assert user_route.called
+    auth_header = user_route.calls.last.request.headers.get("authorization")
+    assert auth_header == "Bearer ghp_loaded_from_dotenv"
+
 
 
 
