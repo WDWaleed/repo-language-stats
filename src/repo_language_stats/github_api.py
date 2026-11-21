@@ -10,6 +10,7 @@ import time
 from typing import Any, Callable
 import httpx
 
+from repo_language_stats.benchmark import BenchmarkCollector
 from repo_language_stats.discovery import TreeEntry
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ class GitHubAPIClient:
         retry_backoff_base: float = 2.0,
         sleep_func: Callable[[float], None] | None = None,
         client: httpx.Client | None = None,
+        benchmark: BenchmarkCollector | None = None,
     ) -> None:
         self.token = token or os.getenv("GITHUB_TOKEN")
         self.base_url = base_url.rstrip("/")
@@ -65,6 +67,7 @@ class GitHubAPIClient:
         self.max_retries = max_retries
         self.retry_backoff_base = retry_backoff_base
         self._sleep = sleep_func or time.sleep
+        self.benchmark = benchmark
 
         headers = {
             "Accept": "application/vnd.github+json",
@@ -128,6 +131,9 @@ class GitHubAPIClient:
         while True:
             try:
                 resp = self._client.request(method, url, params=params)
+
+                if self.benchmark:
+                    self.benchmark.record_response_bytes(len(resp.content))
 
                 # Check rate limit headers on any response
                 self._check_rate_limit(resp)
@@ -226,7 +232,11 @@ class GitHubAPIClient:
                 break
             visited_urls.add(endpoint)
 
-            resp = self._request("GET", endpoint, params=params)
+            if self.benchmark:
+                with self.benchmark.measure("list_repos"):
+                    resp = self._request("GET", endpoint, params=params)
+            else:
+                resp = self._request("GET", endpoint, params=params)
             if not resp:
                 break
 
@@ -284,7 +294,11 @@ class GitHubAPIClient:
         Returns None if the ref does not exist or cannot be resolved.
         """
         endpoint = f"repos/{owner}/{repo}/commits/{ref}"
-        resp = self._request("GET", endpoint)
+        if self.benchmark:
+            with self.benchmark.measure("ref_resolution"):
+                resp = self._request("GET", endpoint)
+        else:
+            resp = self._request("GET", endpoint)
         if not resp:
             return None
 
@@ -313,7 +327,11 @@ class GitHubAPIClient:
         Returns (entries, is_truncated).
         """
         endpoint = f"repos/{owner}/{repo}/git/trees/{sha}"
-        resp = self._request("GET", endpoint, params={"recursive": "1"})
+        if self.benchmark:
+            with self.benchmark.measure("get_tree"):
+                resp = self._request("GET", endpoint, params={"recursive": "1"})
+        else:
+            resp = self._request("GET", endpoint, params={"recursive": "1"})
         if not resp:
             return [], False
 
@@ -334,7 +352,11 @@ class GitHubAPIClient:
     ) -> bytes | None:
         """Retrieve and decode a blob from the Git Blobs API."""
         endpoint = f"repos/{owner}/{repo}/git/blobs/{sha}"
-        resp = self._request("GET", endpoint)
+        if self.benchmark:
+            with self.benchmark.measure("get_blob"):
+                resp = self._request("GET", endpoint)
+        else:
+            resp = self._request("GET", endpoint)
         if not resp:
             return None
 
@@ -344,6 +366,9 @@ class GitHubAPIClient:
 
         if encoding == "base64":
             try:
+                if self.benchmark:
+                    with self.benchmark.measure("decode_base64"):
+                        return base64.b64decode(content_raw)
                 return base64.b64decode(content_raw)
             except Exception as exc:
                 logger.warning("Failed to decode base64 blob %s: %s", sha, exc)

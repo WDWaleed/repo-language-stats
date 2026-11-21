@@ -20,9 +20,12 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
+from repo_language_stats.benchmark import BenchmarkCollector
 from repo_language_stats.counting import (
     AggregateStats,
     StatsAccumulator,
+    count_bytes,
+    count_lines,
 )
 from repo_language_stats.discovery import (
     TreeFilterConfig,
@@ -293,13 +296,18 @@ def scan_repositories(
     filter_config: TreeFilterConfig | None = None,
     ipynb_language: str | None = None,
     progress: Progress | None = None,
+    benchmark: BenchmarkCollector | None = None,
 ) -> AggregateStats:
     """Scan a sequence of repositories and compute aggregated language statistics."""
     cfg = filter_config or TreeFilterConfig()
     accumulator = StatsAccumulator(username=target_name)
+    bm = benchmark or client.benchmark
 
     if not repos:
         logger.warning("No repositories found to scan for %s.", target_name)
+        if bm:
+            with bm.measure("aggregation"):
+                return accumulator.finalize()
         return accumulator.finalize()
 
     task_id = None
@@ -307,6 +315,9 @@ def scan_repositories(
         task_id = progress.add_task(f"[cyan]Scanning {target_name}...", total=len(repos))
 
     for repo in repos:
+        if bm:
+            bm.repos_benchmarked += 1
+
         active_branch = repo.branch or repo.default_branch
         target_sha = repo.tree_sha or repo.default_branch
         logger.info(
@@ -332,7 +343,11 @@ def scan_repositories(
                     progress.advance(task_id)
                 continue
 
-            eligible = filter_tree(tree_entries, config=cfg)
+            if bm:
+                with bm.measure("filter_tree"):
+                    eligible = filter_tree(tree_entries, config=cfg)
+            else:
+                eligible = filter_tree(tree_entries, config=cfg)
             logger.debug("Found %d eligible files out of %d tree entries in %s", len(eligible), len(tree_entries), repo.name)
 
             for entry in eligible:
@@ -341,11 +356,19 @@ def scan_repositories(
                     continue
 
                 if is_notebook(entry.path):
-                    nb_res = parse_notebook(
-                        content=blob_content,
-                        fallback_language=ipynb_language,
-                        file_path=f"{repo.name}/{entry.path}",
-                    )
+                    if bm:
+                        with bm.measure("parse_notebook"):
+                            nb_res = parse_notebook(
+                                content=blob_content,
+                                fallback_language=ipynb_language,
+                                file_path=f"{repo.name}/{entry.path}",
+                            )
+                    else:
+                        nb_res = parse_notebook(
+                            content=blob_content,
+                            fallback_language=ipynb_language,
+                            file_path=f"{repo.name}/{entry.path}",
+                        )
                     if nb_res:
                         if nb_res.language in ("Python", "Jupyter (Python)"):
                             lang_name = "Python"
@@ -353,23 +376,60 @@ def scan_repositories(
                             lang_name = f"Jupyter ({nb_res.language})"
                         else:
                             lang_name = nb_res.language
-                        accumulator.add_stats(
-                            language=lang_name,
-                            bytes_count=nb_res.total_bytes,
-                            lines_count=nb_res.total_lines,
-                            files_count=1,
-                            repo_name=repo.name,
-                        )
-                else:
-                    lang = classify(entry.path)
-                    if lang:
-                        accumulator.add_file(
-                            language=lang,
-                            content=blob_content,
-                            repo_name=repo.name,
-                        )
 
-            accumulator.finish_repo(skipped=False)
+                        if bm:
+                            with bm.measure("aggregation"):
+                                accumulator.add_stats(
+                                    language=lang_name,
+                                    bytes_count=nb_res.total_bytes,
+                                    lines_count=nb_res.total_lines,
+                                    files_count=1,
+                                    repo_name=repo.name,
+                                )
+                            bm.record_source_bytes(nb_res.total_bytes)
+                            bm.record_file_processed(lines=nb_res.total_lines)
+                        else:
+                            accumulator.add_stats(
+                                language=lang_name,
+                                bytes_count=nb_res.total_bytes,
+                                lines_count=nb_res.total_lines,
+                                files_count=1,
+                                repo_name=repo.name,
+                            )
+                else:
+                    if bm:
+                        with bm.measure("classify"):
+                            lang = classify(entry.path)
+                    else:
+                        lang = classify(entry.path)
+
+                    if lang:
+                        if bm:
+                            with bm.measure("count_metrics"):
+                                b_cnt = count_bytes(blob_content)
+                                l_cnt = count_lines(blob_content)
+                            with bm.measure("aggregation"):
+                                accumulator.add_stats(
+                                    language=lang,
+                                    bytes_count=b_cnt,
+                                    lines_count=l_cnt,
+                                    files_count=1,
+                                    repo_name=repo.name,
+                                )
+                            bm.record_source_bytes(b_cnt)
+                            bm.record_file_processed(lines=l_cnt)
+                        else:
+                            accumulator.add_file(
+                                language=lang,
+                                content=blob_content,
+                                repo_name=repo.name,
+                            )
+
+            if bm:
+                with bm.measure("aggregation"):
+                    accumulator.finish_repo(skipped=False)
+            else:
+                accumulator.finish_repo(skipped=False)
         except Exception as exc:
             logger.warning("Error scanning repository %s/%s: %s. Skipping.", repo.owner, repo.name, exc)
             accumulator.finish_repo(skipped=True)
@@ -377,6 +437,9 @@ def scan_repositories(
             if progress and task_id is not None:
                 progress.advance(task_id)
 
+    if bm:
+        with bm.measure("aggregation"):
+            return accumulator.finalize()
     return accumulator.finalize()
 
 
@@ -388,6 +451,7 @@ def scan_user(
     include_private: bool = False,
     ipynb_language: str | None = None,
     progress: Progress | None = None,
+    benchmark: BenchmarkCollector | None = None,
 ) -> AggregateStats:
     """Scan all repositories for a GitHub user and compute language statistics."""
     logger.info("Listing repositories for user %s...", username)
@@ -412,6 +476,7 @@ def scan_user(
         filter_config=filter_config,
         ipynb_language=ipynb_language,
         progress=progress,
+        benchmark=benchmark,
     )
 
 
@@ -423,6 +488,7 @@ def scan_single_repo(
     filter_config: TreeFilterConfig | None = None,
     ipynb_language: str | None = None,
     progress: Progress | None = None,
+    benchmark: BenchmarkCollector | None = None,
 ) -> AggregateStats | None:
     """Scan a single repository and compute language statistics."""
     full_name = f"{owner}/{repo_name}"
@@ -448,7 +514,11 @@ def scan_single_repo(
         filter_config=filter_config,
         ipynb_language=ipynb_language,
         progress=progress,
+        benchmark=benchmark,
     )
+    if branch:
+        stats.branch = branch
+    return stats
     if branch:
         stats.branch = branch
     return stats

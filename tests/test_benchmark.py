@@ -116,3 +116,115 @@ def test_benchmark_counters_and_throughput():
     assert b.lines_per_second == 500.0  # 1000 lines / 2.0s
     assert b.cpu_files_per_second == 4.0  # 2 files / 0.5s CPU
     assert b.cpu_lines_per_second == 2000.0  # 1000 lines / 0.5s CPU
+
+
+import base64
+import httpx
+import respx
+from repo_language_stats.github_api import GitHubAPIClient
+from repo_language_stats.cli import scan_single_repo
+
+
+@respx.mock
+def test_github_api_client_with_benchmark():
+    bm = BenchmarkCollector()
+
+    respx.get("https://api.github.com/repos/octocat/repo1/commits/dev").mock(
+        return_value=httpx.Response(
+            200,
+            json={"sha": "c1", "commit": {"tree": {"sha": "t1"}}},
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/repo1/git/trees/t1").mock(
+        return_value=httpx.Response(
+            200,
+            json={"sha": "t1", "truncated": False, "tree": []},
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/repo1/git/blobs/b1").mock(
+        return_value=httpx.Response(
+            200,
+            json={"encoding": "base64", "content": base64.b64encode(b"hello world\n").decode("ascii")},
+        )
+    )
+
+    with GitHubAPIClient(benchmark=bm) as client:
+        sha = client.get_ref_tree_sha("octocat", "repo1", "dev")
+        assert sha == "t1"
+
+        entries, _ = client.get_tree("octocat", "repo1", "t1")
+        assert entries == []
+
+        blob = client.get_blob("octocat", "repo1", "b1")
+        assert blob == b"hello world\n"
+
+    assert bm.req_count_refs == 1
+    assert bm.req_count_trees == 1
+    assert bm.req_count_blobs == 1
+    assert bm.total_requests == 3
+    assert bm.wire_bytes_downloaded > 0
+    assert bm.t_ref_resolution_ns > 0
+    assert bm.t_get_tree_ns > 0
+    assert bm.t_get_blob_ns > 0
+    assert bm.t_decode_base64_ns > 0
+
+
+@respx.mock
+def test_scan_single_repo_with_benchmark():
+    bm = BenchmarkCollector()
+
+    respx.get("https://api.github.com/repos/octocat/repo1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "repo1",
+                "owner": {"login": "octocat"},
+                "default_branch": "main",
+                "fork": False,
+                "private": False,
+                "size": 100,
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/repo1/git/trees/main").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "main",
+                "truncated": False,
+                "tree": [
+                    {"path": "main.py", "mode": "100644", "type": "blob", "sha": "blob1", "size": 35},
+                ],
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/repo1/git/blobs/blob1").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "encoding": "base64",
+                "content": base64.b64encode(b"def foo():\n    return 42\n").decode("ascii"),
+            },
+        )
+    )
+
+    with GitHubAPIClient(benchmark=bm) as client:
+        stats = scan_single_repo(
+            owner="octocat",
+            repo_name="repo1",
+            client=client,
+            benchmark=bm,
+        )
+
+    assert stats is not None
+    assert bm.repos_benchmarked == 1
+    assert bm.files_processed == 1
+    assert bm.lines_counted == 2
+    assert bm.source_bytes_counted == len(b"def foo():\n    return 42\n")
+    assert bm.t_filter_tree_ns > 0
+    assert bm.t_classify_ns > 0
+    assert bm.t_count_metrics_ns > 0
+    assert bm.t_aggregation_ns > 0
+    assert bm.total_network_time_s > 0.0
+    assert bm.total_cpu_time_s > 0.0
+
