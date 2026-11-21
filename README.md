@@ -164,6 +164,16 @@ repo-language-stats https://github.com/WDWaleed/repo-language-stats
 
 # Using the --repo flag:
 repo-language-stats WDWaleed --repo repo-language-stats
+
+# Scan a specific branch using --branch or -b:
+repo-language-stats WDWaleed/repo-language-stats --branch develop
+repo-language-stats WDWaleed/repo-language-stats -b feature/login
+
+# Scan directly from a GitHub branch URL:
+repo-language-stats https://github.com/WDWaleed/repo-language-stats/tree/develop
+
+# Scan using ref syntax (@branch):
+repo-language-stats WDWaleed/repo-language-stats@develop
 ```
 
 ### Display Options
@@ -256,7 +266,7 @@ repo-language-stats WDWaleed -vv  # DEBUG logging (shows API endpoints, rate lim
 ## CLI Reference
 
 ```
-usage: repo-language-stats [-h] [--repo REPO] [--token [TOKEN]]
+usage: repo-language-stats [-h] [--repo REPO] [-b BRANCH] [--token [TOKEN]]
                            [--include-forks] [--include-private]
                            [--include-generated] [--include-vendored]
                            [--include-docs] [--all]
@@ -272,6 +282,7 @@ usage: repo-language-stats [-h] [--repo REPO] [--token [TOKEN]]
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TARGET`                    | GitHub username (e.g. `WDWaleed`), single repository in `owner/repo` format (e.g. `WDWaleed/repo-language-stats`), or full GitHub repository / profile URL (e.g. `https://github.com/WDWaleed/repo-language-stats`). |
 | `--repo REPO`               | Specific repository name to scan when `TARGET` is a username.                                                                                                                                                        |
+| `-b, --branch BRANCH`       | Specific branch or Git ref to scan (single repository mode only; defaults to repository's default branch).                                                                                                           |
 | `--token [TOKEN]`           | GitHub personal access token (if passed without a value, automatically uses `GITHUB_TOKEN` from `.env`; defaults to `GITHUB_TOKEN` environment variable).                                                            |
 | `--include-forks`           | Include forked repositories in the scan (excluded by default).                                                                                                                                                       |
 | `--include-private`         | Include private repositories (requires a token with `repo` scope; only works when scanning your own account).                                                                                                        |
