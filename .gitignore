@@ -20,6 +20,9 @@ implementation.md
 web-implementation.md
 docs/changes_to_commit.md
 
+# Benchmarks
+docs/benchmarks/others.md
+
 issues.md
 
 .env

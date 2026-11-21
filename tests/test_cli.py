@@ -1043,6 +1043,67 @@ def test_cli_single_repo_branch_not_found(capsys):
     assert "Error: Branch 'non-existent-branch' was not found in repository 'octocat/single-repo'" in captured.err
 
 
+def test_cli_parser_benchmark_flags():
+    parser = build_parser()
+    args_default = parser.parse_args(["octocat"])
+    assert args_default.benchmark is False
+    assert args_default.benchmark_output is None
+
+    args_bench = parser.parse_args(["octocat", "--benchmark", "--benchmark-output", "bench.md"])
+    assert args_bench.benchmark is True
+    assert args_bench.benchmark_output == Path("bench.md")
+
+
+@respx.mock
+def test_cli_benchmark_execution(tmp_path: Path, capsys):
+    bench_out = tmp_path / "custom_bench.md"
+
+    respx.get("https://api.github.com/repos/octocat/single-repo").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "single-repo",
+                "owner": {"login": "octocat"},
+                "default_branch": "main",
+                "fork": False,
+                "private": False,
+                "size": 100,
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/single-repo/git/trees/main").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "main",
+                "truncated": False,
+                "tree": [
+                    {"path": "app.py", "mode": "100644", "type": "blob", "sha": "blob_app_py", "size": 30},
+                ],
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/single-repo/git/blobs/blob_app_py").mock(
+        return_value=httpx.Response(
+            200,
+            json={"content": base64.b64encode(b"print('benchmark test')\n").decode("ascii"), "encoding": "base64"},
+        )
+    )
+
+    ret = main(["octocat/single-repo", "--benchmark", "--benchmark-output", str(bench_out), "--format", "json"])
+    assert ret == 0
+
+    assert bench_out.is_file()
+    content = bench_out.read_text(encoding="utf-8")
+    assert "# Benchmark Report: octocat/single-repo" in content
+    assert "Executive Summary" in content
+
+    captured = capsys.readouterr()
+    assert "Benchmark Profile: octocat/single-repo" in captured.err
+    assert "Benchmark report saved to:" in captured.err
+
+
+
 
 
 

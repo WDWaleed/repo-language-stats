@@ -228,3 +228,96 @@ def test_scan_single_repo_with_benchmark():
     assert bm.total_network_time_s > 0.0
     assert bm.total_cpu_time_s > 0.0
 
+
+from pathlib import Path
+from repo_language_stats.benchmark import (
+    generate_markdown_report,
+    print_terminal_benchmark,
+    resolve_benchmark_path,
+    save_benchmark_report,
+)
+from rich.console import Console
+
+
+def test_resolve_benchmark_path():
+    root = Path("/dummy/project")
+
+    # Demo repo
+    p, append = resolve_benchmark_path("WDWaleed/repo-language-stats", base_dir=root)
+    assert p == root / "docs" / "benchmarks" / "demo_repo.md"
+    assert append is False
+
+    # Demo profile
+    p, append = resolve_benchmark_path("WDWaleed", base_dir=root)
+    assert p == root / "docs" / "benchmarks" / "demo_profile.md"
+    assert append is False
+
+    # Others
+    p, append = resolve_benchmark_path("octocat/Hello-World", base_dir=root)
+    assert p == root / "docs" / "benchmarks" / "others.md"
+    assert append is True
+
+    # Custom override
+    custom = Path("/tmp/my_benchmark.md")
+    p, append = resolve_benchmark_path("WDWaleed", custom_output=custom, base_dir=root)
+    assert p == custom
+    assert append is False
+
+
+def test_generate_markdown_report():
+    b = BenchmarkCollector()
+    b.t_wall_clock_ns = 2_000_000_000
+    b.t_get_blob_ns = 1_800_000_000
+    b.req_count_blobs = 10
+    b.t_classify_ns = 200_000_000
+    b.record_response_bytes(100_000)
+    b.record_source_bytes(75_000)
+    b.record_file_processed(lines=300)
+
+    report = generate_markdown_report(
+        benchmark=b,
+        target="WDWaleed/repo-language-stats",
+        branch="main",
+        is_single_repo=True,
+    )
+
+    assert "# Benchmark Report: WDWaleed/repo-language-stats" in report
+    assert "Single Repository" in report
+    assert "Branch:** `main`" in report
+    assert "Total Wall-Clock Time" in report
+    assert "Primary Bottleneck: Network I/O" in report
+    assert "Rust Viability Assessment" in report
+
+
+def test_save_benchmark_report(tmp_path: Path):
+    target_file = tmp_path / "docs" / "benchmarks" / "test.md"
+
+    # Write new
+    save_benchmark_report("# Run 1", target_file, append=False)
+    assert target_file.read_text(encoding="utf-8").strip() == "# Run 1"
+
+    # Append
+    save_benchmark_report("# Run 2", target_file, append=True)
+    content = target_file.read_text(encoding="utf-8")
+    assert "# Run 1" in content
+    assert "---" in content
+    assert "# Run 2" in content
+
+
+def test_print_terminal_benchmark():
+    b = BenchmarkCollector()
+    b.t_get_blob_ns = 1_000_000_000
+    b.req_count_blobs = 5
+    b.t_classify_ns = 200_000_000
+    b.record_response_bytes(50_000)
+    b.record_file_processed(lines=100)
+
+    console = Console(record=True, width=120)
+    print_terminal_benchmark(b, target="octocat/repo1", console=console)
+    output = console.export_text()
+
+    assert "Benchmark Profile: octocat/repo1" in output
+    assert "Network I/O" in output
+    assert "Local CPU Computation" in output
+
+

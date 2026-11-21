@@ -20,7 +20,13 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from repo_language_stats.benchmark import BenchmarkCollector
+from repo_language_stats.benchmark import (
+    BenchmarkCollector,
+    generate_markdown_report,
+    print_terminal_benchmark,
+    resolve_benchmark_path,
+    save_benchmark_report,
+)
 from repo_language_stats.counting import (
     AggregateStats,
     StatsAccumulator,
@@ -49,6 +55,7 @@ OPTS_WITH_ARG = {
     "-o",
     "--output",
     "--ipynb-language",
+    "--benchmark-output",
 }
 
 
@@ -261,6 +268,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--ipynb-language",
         default=None,
         help="Override language for Jupyter notebooks whose kernel cannot be auto-detected.",
+    )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        default=False,
+        help="Run benchmark profiling, display execution diagnostics, and generate report in docs/benchmarks/.",
+    )
+    parser.add_argument(
+        "--benchmark-output",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Custom file path for benchmark markdown report (overrides docs/benchmarks/ defaults).",
     )
     parser.add_argument(
         "-v",
@@ -657,6 +677,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     console = Console(stderr=True)
     show_progress = args.format == "table" and args.output is None
+    benchmark: BenchmarkCollector | None = BenchmarkCollector() if args.benchmark else None
 
     try:
         if args.include_private and not args.token:
@@ -666,7 +687,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 1
 
-        with GitHubAPIClient(token=args.token) as client:
+        with GitHubAPIClient(token=args.token, benchmark=benchmark) as client:
             if args.include_private:
                 if is_single_repo:
                     logger.warning(
@@ -698,6 +719,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     filter_config=filter_cfg,
                     ipynb_language=args.ipynb_language,
                     progress=prog,
+                    benchmark=benchmark,
                 )
             else:
                 scan_action = lambda prog: scan_user(
@@ -708,20 +730,28 @@ def main(argv: Sequence[str] | None = None) -> int:
                     include_private=args.include_private,
                     ipynb_language=args.ipynb_language,
                     progress=prog,
+                    benchmark=benchmark,
                 )
 
-            if show_progress:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(),
-                    MofNCompleteColumn(),
-                    TimeElapsedColumn(),
-                    console=console,
-                ) as progress:
-                    stats = scan_action(progress)
+            def _run_scan() -> AggregateStats | None:
+                if show_progress:
+                    with Progress(
+                        SpinnerColumn(),
+                        TextColumn("[progress.description]{task.description}"),
+                        BarColumn(),
+                        MofNCompleteColumn(),
+                        TimeElapsedColumn(),
+                        console=console,
+                    ) as progress:
+                        return scan_action(progress)
+                else:
+                    return scan_action(None)
+
+            if benchmark:
+                with benchmark.measure("wall_clock"):
+                    stats = _run_scan()
             else:
-                stats = scan_action(None)
+                stats = _run_scan()
 
         if stats is None:
             return 1
@@ -742,6 +772,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                 per_repo=args.per_repo,
                 show_files=args.show_files,
             )
+
+        if benchmark:
+            target_path, should_append = resolve_benchmark_path(
+                target_str=target_str,
+                custom_output=args.benchmark_output,
+            )
+            report_md = generate_markdown_report(
+                benchmark=benchmark,
+                target=target_str,
+                branch=target_branch,
+                is_single_repo=is_single_repo,
+            )
+            save_benchmark_report(report_md, target_path, append=should_append)
+            print_terminal_benchmark(benchmark, target=target_str, console=console)
+            console.print(f"[bold green]✓ Benchmark report saved to:[/bold green] [cyan]{target_path}[/cyan]\n")
 
         return 0
 
