@@ -22,4 +22,4 @@ Planned features and enhancements for `repo-language-stats`.
 
 - **Language Ignore List** — Allow users to specify languages to exclude from results (e.g., `--ignore-language Shell`), complementing the existing file-level exclusion flags.
 
--- **Benchmarking** — Might rewrite this in Rust so it would be good to know if it actually makes a difference. If local computations are taking a significant chunk of time, Rust could be a better choice.
+- **Benchmarking** — Added `--benchmark` and `--synthetic-benchmark` flags. `--benchmark` instruments the full scan pipeline, separating network I/O time from local CPU computation time, tracking wire payload sizes and effective bandwidth, and writing a Markdown report to `docs/benchmarks/`. `--synthetic-benchmark` runs a pure in-memory CPU workload (no network) to establish a local compute ceiling — useful for assessing whether a Rust rewrite would yield meaningful gains. See [docs/benchmarks/](benchmarks/) for real benchmark results.

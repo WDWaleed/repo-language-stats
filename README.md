@@ -22,6 +22,7 @@ Unlike GitHub's built-in language bar, **repo-language-stats** provides dual met
   - [Display Options (`--show-files`, `--per-repo`)](#display-options)
   - [Inclusion & Exclusion Flags (`--all`, `--include-*`)](#inclusion--exclusion-flags)
   - [Exporting Results (JSON, CSV, File Output)](#exporting-results)
+  - [Benchmarking (`--benchmark`, `--synthetic-benchmark`)](#benchmarking)
 - [CLI Reference](#cli-reference)
 - [How It Works](#how-it-works)
 - [Exclusions & Grouping Guide](#exclusions--grouping-guide)
@@ -43,6 +44,7 @@ Unlike GitHub's built-in language bar, **repo-language-stats** provides dual met
 - **Fast, Cloning-Free Discovery**: Leverages the GitHub Git Trees API (`recursive=1`) and Git Blobs API to inspect repository contents on the fly without running heavy `git clone` operations on disk.
 - **Multiple Output Formats**: Beautiful interactive Rich terminal tables with ANSI colors, structured machine-readable JSON, or flat CSV for spreadsheet analysis.
 - **Resilient API Handling**: Automatic exponential backoff with jitter on HTTP 403/429 rate limits, per-repo error isolation, and graceful handling of empty repositories (HTTP 409 Conflict).
+- **Built-in Benchmarking**: `--benchmark` instruments every scan, separating network I/O time from local CPU computation time and saving a Markdown report to `docs/benchmarks/`. `--synthetic-benchmark` runs a pure in-memory workload (no network) to measure the local compute ceiling.
 
 ---
 
@@ -261,6 +263,33 @@ repo-language-stats WDWaleed -v   # INFO logging
 repo-language-stats WDWaleed -vv  # DEBUG logging (shows API endpoints, rate limit headers)
 ```
 
+### Benchmarking
+
+#### Profile a Real Scan (`--benchmark`)
+
+Instruments the full scan pipeline — separating network I/O time from local CPU computation time — and writes a Markdown report to `docs/benchmarks/`:
+
+```bash
+# Benchmark a full user profile:
+repo-language-stats WDWaleed --benchmark --token
+
+# Benchmark a single repository:
+repo-language-stats WDWaleed/repo-language-stats --benchmark --token
+```
+
+Report routing:
+- `WDWaleed/repo-language-stats` → `docs/benchmarks/demo_repo.md` (overwrite)
+- `WDWaleed` → `docs/benchmarks/demo_profile.md` (overwrite)
+- Any other target → `docs/benchmarks/others.md` (append; gitignored)
+
+#### Pure CPU Synthetic Benchmark (`--synthetic-benchmark`)
+
+Runs an in-memory workload with no network calls, measuring only local computation speed. Useful for assessing how much time is actually spent on CPU work vs. waiting for the network:
+
+```bash
+repo-language-stats --synthetic-benchmark
+```
+
 ---
 
 ## CLI Reference
@@ -272,8 +301,9 @@ usage: repo-language-stats [-h] [--repo REPO] [-b BRANCH] [--token [TOKEN]]
                            [--include-docs] [--all]
                            [--exclude-pattern EXCLUDE_PATTERNS] [--per-repo]
                            [--show-files] [--format {table,json,csv}]
-                           [-o OUTPUT] [--ipynb-language IPYNB_LANGUAGE] [-v]
-                           TARGET
+                           [-o OUTPUT] [--ipynb-language IPYNB_LANGUAGE]
+                           [--benchmark] [--synthetic-benchmark] [-v]
+                           [TARGET]
 ```
 
 ### Arguments & Options
@@ -297,6 +327,8 @@ usage: repo-language-stats [-h] [--repo REPO] [-b BRANCH] [--token [TOKEN]]
 | `-o, --output OUTPUT`       | Write output to the specified file path instead of stdout.                                                                                                                                                           |
 | `--ipynb-language LANG`     | Override language for Jupyter notebooks whose kernel cannot be auto-detected.                                                                                                                                        |
 | `-v, --verbose`             | Increase logging verbosity (`-v` for INFO, `-vv` for DEBUG).                                                                                                                                                         |
+| `--benchmark`               | Instrument the full scan and save a Markdown timing report to `docs/benchmarks/` (separates network I/O time from local CPU time).                                                                                   |
+| `--synthetic-benchmark`     | Run a pure in-memory CPU benchmark (no network) and print the results. `TARGET` is not required when this flag is set.                                                                                               |
 | `-h, --help`                | Show help message and exit.                                                                                                                                                                                          |
 
 ---
