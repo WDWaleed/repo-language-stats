@@ -269,6 +269,37 @@ class GitHubAPIClient:
 
         return RepoInfo.from_api_dict(data)
 
+    def get_ref_tree_sha(
+        self,
+        owner: str,
+        repo: str,
+        ref: str,
+    ) -> str | None:
+        """Resolve a branch, tag, or commit ref to its Git tree SHA.
+
+        Uses GET /repos/{owner}/{repo}/commits/{ref} which safely handles branch
+        names with forward slashes (e.g. 'feature/x'), tags, and commit SHAs.
+        Returns None if the ref does not exist or cannot be resolved.
+        """
+        endpoint = f"repos/{owner}/{repo}/commits/{ref}"
+        resp = self._request("GET", endpoint)
+        if not resp:
+            return None
+
+        data = resp.json()
+        if not isinstance(data, dict):
+            return None
+
+        commit_obj = data.get("commit")
+        if isinstance(commit_obj, dict):
+            tree_obj = commit_obj.get("tree")
+            if isinstance(tree_obj, dict):
+                tree_sha = tree_obj.get("sha")
+                if isinstance(tree_sha, str):
+                    return tree_sha
+
+        return None
+
     def get_tree(
         self,
         owner: str,

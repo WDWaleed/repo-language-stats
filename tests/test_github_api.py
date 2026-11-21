@@ -444,3 +444,70 @@ def test_list_repos_include_private():
         assert len(all_repos) == 3
         assert [r.name for r in all_repos] == ["public-repo", "private-repo", "private-fork"]
 
+
+@respx.mock
+def test_get_ref_tree_sha_standard_branch():
+    respx.get("https://api.github.com/repos/octocat/my-repo/commits/dev").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "commit_sha_123",
+                "commit": {
+                    "tree": {
+                        "sha": "tree_sha_abc",
+                        "url": "https://api.github.com/repos/octocat/my-repo/git/trees/tree_sha_abc",
+                    }
+                },
+            },
+        )
+    )
+
+    with GitHubAPIClient() as client:
+        sha = client.get_ref_tree_sha("octocat", "my-repo", "dev")
+        assert sha == "tree_sha_abc"
+
+
+@respx.mock
+def test_get_ref_tree_sha_branch_with_slashes():
+    respx.get("https://api.github.com/repos/octocat/my-repo/commits/feature/new-login-flow").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "commit_sha_456",
+                "commit": {
+                    "tree": {
+                        "sha": "tree_sha_xyz",
+                        "url": "https://api.github.com/repos/octocat/my-repo/git/trees/tree_sha_xyz",
+                    }
+                },
+            },
+        )
+    )
+
+    with GitHubAPIClient() as client:
+        sha = client.get_ref_tree_sha("octocat", "my-repo", "feature/new-login-flow")
+        assert sha == "tree_sha_xyz"
+
+
+@respx.mock
+def test_get_ref_tree_sha_not_found():
+    respx.get("https://api.github.com/repos/octocat/my-repo/commits/non-existent-branch").mock(
+        return_value=httpx.Response(404)
+    )
+
+    with GitHubAPIClient() as client:
+        sha = client.get_ref_tree_sha("octocat", "my-repo", "non-existent-branch")
+        assert sha is None
+
+
+@respx.mock
+def test_get_ref_tree_sha_malformed_response():
+    respx.get("https://api.github.com/repos/octocat/my-repo/commits/bad-commit").mock(
+        return_value=httpx.Response(200, json={"commit": {}})
+    )
+
+    with GitHubAPIClient() as client:
+        sha = client.get_ref_tree_sha("octocat", "my-repo", "bad-commit")
+        assert sha is None
+
+
