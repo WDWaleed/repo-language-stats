@@ -56,6 +56,7 @@ class AggregateStats:
     aggregate: dict[str, LanguageStats] = field(default_factory=dict)
     total_bytes: int = 0
     total_lines: int = 0
+    branch: str | None = None
 
 
 def count_bytes(content: str | bytes) -> int:

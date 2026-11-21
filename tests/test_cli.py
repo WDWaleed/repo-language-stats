@@ -14,6 +14,7 @@ from repo_language_stats.cli import (
     get_env_github_token,
     main,
     normalize_target,
+    parse_target_ref,
 )
 from repo_language_stats.counting import (
     AggregateStats,
@@ -831,6 +832,216 @@ def test_cli_main_bare_token_loads_env_for_api_call(tmp_path: Path, monkeypatch:
     assert user_route.called
     auth_header = user_route.calls.last.request.headers.get("authorization")
     assert auth_header == "Bearer ghp_loaded_from_dotenv"
+
+
+def test_parse_target_ref():
+    assert parse_target_ref("octocat") == ("octocat", None)
+    assert parse_target_ref("octocat/Hello-World") == ("octocat/Hello-World", None)
+    assert parse_target_ref("octocat/Hello-World@dev") == ("octocat/Hello-World", "dev")
+    assert parse_target_ref("octocat/Hello-World@feature/auth") == ("octocat/Hello-World", "feature/auth")
+    assert parse_target_ref("https://github.com/octocat/Hello-World/tree/dev") == ("octocat/Hello-World", "dev")
+    assert parse_target_ref("https://github.com/octocat/Hello-World/tree/feature/auth") == ("octocat/Hello-World", "feature/auth")
+    assert parse_target_ref("https://github.com/octocat/Hello-World.git@dev") == ("octocat/Hello-World", "dev")
+    assert parse_target_ref("git@github.com:octocat/Hello-World.git") == ("octocat/Hello-World", None)
+    assert parse_target_ref("git@github.com:octocat/Hello-World.git@dev") == ("octocat/Hello-World", "dev")
+    assert parse_target_ref("   ") == ("", None)
+
+
+def test_cli_parser_branch_flag():
+    parser = build_parser()
+    args_default = parser.parse_args(["octocat/my-repo"])
+    assert args_default.branch is None
+
+    args_long = parser.parse_args(["octocat/my-repo", "--branch", "dev"])
+    assert args_long.branch == "dev"
+
+    args_short = parser.parse_args(["octocat/my-repo", "-b", "feature/login"])
+    assert args_short.branch == "feature/login"
+
+
+def test_cli_branch_flag_with_user_target_rejected(capsys):
+    ret = main(["octocat", "--branch", "dev"])
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "Error: --branch can only be used when scanning a single repository" in captured.err
+
+
+@respx.mock
+def test_cli_single_repo_with_branch_flag(capsys):
+    respx.get("https://api.github.com/repos/octocat/single-repo").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "single-repo",
+                "owner": {"login": "octocat"},
+                "default_branch": "main",
+                "fork": False,
+                "private": False,
+                "size": 100,
+            },
+        )
+    )
+    commit_route = respx.get("https://api.github.com/repos/octocat/single-repo/commits/dev").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "csha123",
+                "commit": {"tree": {"sha": "tree_dev_sha"}},
+            },
+        )
+    )
+    tree_route = respx.get("https://api.github.com/repos/octocat/single-repo/git/trees/tree_dev_sha").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "tree_dev_sha",
+                "truncated": False,
+                "tree": [
+                    {"path": "app.py", "mode": "100644", "type": "blob", "sha": "blob_app_py", "size": 30},
+                ],
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/single-repo/git/blobs/blob_app_py").mock(
+        return_value=httpx.Response(
+            200,
+            json={"content": base64.b64encode(b"print('hello dev branch')\n").decode("ascii"), "encoding": "base64"},
+        )
+    )
+
+    ret = main(["octocat/single-repo", "--branch", "dev", "--format", "json"])
+    assert ret == 0
+    assert commit_route.called
+    assert tree_route.called
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["username"] == "octocat/single-repo"
+    assert data["branch"] == "dev"
+    assert data["repos_scanned"] == 1
+    assert data["languages"][0]["language"] == "Python"
+
+
+@respx.mock
+def test_cli_single_repo_with_url_tree_branch(capsys):
+    respx.get("https://api.github.com/repos/octocat/single-repo").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "single-repo",
+                "owner": {"login": "octocat"},
+                "default_branch": "main",
+                "fork": False,
+                "private": False,
+                "size": 100,
+            },
+        )
+    )
+    commit_route = respx.get("https://api.github.com/repos/octocat/single-repo/commits/feature/ui-refresh").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "csha789",
+                "commit": {"tree": {"sha": "tree_feature_sha"}},
+            },
+        )
+    )
+    tree_route = respx.get("https://api.github.com/repos/octocat/single-repo/git/trees/tree_feature_sha").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "tree_feature_sha",
+                "truncated": False,
+                "tree": [
+                    {"path": "index.ts", "mode": "100644", "type": "blob", "sha": "blob_index_ts", "size": 40},
+                ],
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/single-repo/git/blobs/blob_index_ts").mock(
+        return_value=httpx.Response(
+            200,
+            json={"content": base64.b64encode(b"console.log('ui branch');\n").decode("ascii"), "encoding": "base64"},
+        )
+    )
+
+    ret = main(["https://github.com/octocat/single-repo/tree/feature/ui-refresh", "--format", "json"])
+    assert ret == 0
+    assert commit_route.called
+    assert tree_route.called
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["branch"] == "feature/ui-refresh"
+    assert data["languages"][0]["language"] == "TypeScript"
+
+
+@respx.mock
+def test_cli_single_repo_branch_flag_overrides_url_branch(capsys):
+    respx.get("https://api.github.com/repos/octocat/single-repo").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "single-repo",
+                "owner": {"login": "octocat"},
+                "default_branch": "main",
+                "fork": False,
+                "private": False,
+                "size": 100,
+            },
+        )
+    )
+    commit_dev = respx.get("https://api.github.com/repos/octocat/single-repo/commits/dev").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "csha_dev",
+                "commit": {"tree": {"sha": "tree_dev_sha"}},
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/single-repo/git/trees/tree_dev_sha").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "sha": "tree_dev_sha",
+                "truncated": False,
+                "tree": [],
+            },
+        )
+    )
+
+    # URL specifies /tree/main, but -b dev flag should override
+    ret = main(["https://github.com/octocat/single-repo/tree/main", "-b", "dev", "--format", "json"])
+    assert ret == 0
+    assert commit_dev.called
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["branch"] == "dev"
+
+
+@respx.mock
+def test_cli_single_repo_branch_not_found(capsys):
+    respx.get("https://api.github.com/repos/octocat/single-repo").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "name": "single-repo",
+                "owner": {"login": "octocat"},
+                "default_branch": "main",
+                "fork": False,
+                "private": False,
+                "size": 100,
+            },
+        )
+    )
+    respx.get("https://api.github.com/repos/octocat/single-repo/commits/non-existent-branch").mock(
+        return_value=httpx.Response(404)
+    )
+
+    ret = main(["octocat/single-repo", "--branch", "non-existent-branch"])
+    assert ret == 1
+    captured = capsys.readouterr()
+    assert "Error: Branch 'non-existent-branch' was not found in repository 'octocat/single-repo'" in captured.err
+
 
 
 

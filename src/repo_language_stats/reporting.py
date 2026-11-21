@@ -92,7 +92,8 @@ def print_table(
     """Print beautifully formatted Rich tables directly to the console."""
     con = console or Console()
 
-    con.print(f"\n[bold]GitHub Language Statistics for:[/bold] [green]{stats.username}[/green]")
+    branch_suffix = f" (branch: {stats.branch})" if stats.branch else ""
+    con.print(f"\n[bold]GitHub Language Statistics for:[/bold] [green]{stats.username}{branch_suffix}[/green]")
     con.print(f"Repositories scanned: {stats.repos_scanned} │ Skipped: {stats.repos_skipped}\n")
 
     if per_repo and stats.per_repo:
@@ -168,6 +169,8 @@ def format_json(
         "total_lines": stats.total_lines,
         "languages": _format_lang_list(stats.aggregate, tot_b, tot_l),
     }
+    if stats.branch:
+        data["branch"] = stats.branch
 
     if per_repo:
         per_repo_list = []

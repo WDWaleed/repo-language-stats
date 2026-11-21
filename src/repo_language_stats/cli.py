@@ -39,6 +39,8 @@ _USE_ENV_TOKEN = "__USE_ENV_TOKEN__"
 
 OPTS_WITH_ARG = {
     "--repo",
+    "-b",
+    "--branch",
     "--exclude-pattern",
     "--format",
     "-o",
@@ -165,6 +167,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--repo",
         default=None,
         help="Specific repository name to scan (when TARGET is an owner/username).",
+    )
+    parser.add_argument(
+        "-b",
+        "--branch",
+        default=None,
+        metavar="BRANCH",
+        help="Specific branch or Git ref to scan (single repository mode only; defaults to repository's default branch).",
     )
     parser.add_argument(
         "--token",
@@ -298,12 +307,14 @@ def scan_repositories(
         task_id = progress.add_task(f"[cyan]Scanning {target_name}...", total=len(repos))
 
     for repo in repos:
+        active_branch = repo.branch or repo.default_branch
+        target_sha = repo.tree_sha or repo.default_branch
         logger.info(
             "Scanning %s repository %s/%s (branch: %s)...",
             "private" if repo.is_private else "public",
             repo.owner,
             repo.name,
-            repo.default_branch,
+            active_branch,
         )
         accumulator.start_repo(repo.name)
 
@@ -311,7 +322,7 @@ def scan_repositories(
             tree_entries, is_truncated = client.get_tree(
                 owner=repo.owner,
                 repo=repo.name,
-                sha=repo.default_branch,
+                sha=target_sha,
             )
 
             if not tree_entries:
@@ -408,10 +419,11 @@ def scan_single_repo(
     owner: str,
     repo_name: str,
     client: GitHubAPIClient,
+    branch: str | None = None,
     filter_config: TreeFilterConfig | None = None,
     ipynb_language: str | None = None,
     progress: Progress | None = None,
-) -> AggregateStats:
+) -> AggregateStats | None:
     """Scan a single repository and compute language statistics."""
     full_name = f"{owner}/{repo_name}"
     logger.info("Fetching repository metadata for %s...", full_name)
@@ -420,7 +432,16 @@ def scan_single_repo(
         logger.warning("Repository %s not found or inaccessible.", full_name)
         return AggregateStats(username=full_name)
 
-    return scan_repositories(
+    if branch:
+        logger.info("Resolving branch/ref '%s' for %s...", branch, full_name)
+        tree_sha = client.get_ref_tree_sha(owner=owner, repo=repo_name, ref=branch)
+        if not tree_sha:
+            sys.stderr.write(f"Error: Branch '{branch}' was not found in repository '{full_name}'.\n")
+            return None
+        repo.branch = branch
+        repo.tree_sha = tree_sha
+
+    stats = scan_repositories(
         target_name=full_name,
         repos=[repo],
         client=client,
@@ -428,6 +449,55 @@ def scan_single_repo(
         ipynb_language=ipynb_language,
         progress=progress,
     )
+    if branch:
+        stats.branch = branch
+    return stats
+
+
+def parse_target_ref(target: str) -> tuple[str, str | None]:
+    """Extract normalized target and optional branch ref from a target string.
+
+    Supports:
+    - Usernames: 'octocat' -> ('octocat', None)
+    - Owner/Repo: 'octocat/Hello-World' -> ('octocat/Hello-World', None)
+    - Ref syntax: 'octocat/Hello-World@dev' -> ('octocat/Hello-World', 'dev')
+    - Tree URLs: 'https://github.com/octocat/Hello-World/tree/dev' -> ('octocat/Hello-World', 'dev')
+    - Tree URLs with nested branch: 'https://github.com/octocat/Hello-World/tree/feature/login' -> ('octocat/Hello-World', 'feature/login')
+    - SSH URLs: 'git@github.com:octocat/Hello-World.git' -> ('octocat/Hello-World', None)
+    - SSH URLs with ref: 'git@github.com:octocat/Hello-World.git@dev' -> ('octocat/Hello-World', 'dev')
+    """
+    cleaned = target.strip()
+    if not cleaned:
+        return ("", None)
+
+    branch: str | None = None
+
+    # Handle SSH git URLs: git@github.com:owner/repo(.git)(@branch)
+    if cleaned.startswith("git@github.com:"):
+        remainder = cleaned[len("git@github.com:"):]
+        if "@" in remainder:
+            remainder, branch = remainder.split("@", 1)
+            branch = branch.strip() or None
+        return (normalize_target(remainder), branch)
+
+    # Check for HTTP(S) URLs or github.com/ URLs with /tree/
+    if "://" in cleaned or cleaned.startswith("github.com/"):
+        parsed = urlparse(cleaned if "://" in cleaned else f"https://{cleaned}")
+        path_segments = [p.strip() for p in parsed.path.lstrip("/").split("/") if p.strip()]
+        if len(path_segments) >= 4 and path_segments[2] == "tree":
+            owner = path_segments[0]
+            repo = path_segments[1]
+            if repo.endswith(".git"):
+                repo = repo[:-4]
+            branch = "/".join(path_segments[3:])
+            return (f"{owner}/{repo}", branch or None)
+
+    # Check for @branch syntax
+    if "@" in cleaned:
+        target_part, branch_part = cleaned.split("@", 1)
+        return (normalize_target(target_part), branch_part.strip() or None)
+
+    return (normalize_target(cleaned), None)
 
 
 def normalize_target(target: str) -> str:
@@ -480,7 +550,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_logging(args.verbose)
 
     # Determine whether target is a single repo (owner/repo, URL, or --repo flag) or a user
-    target_str = normalize_target(args.target)
+    target_str, detected_branch = parse_target_ref(args.target)
+    target_branch = args.branch if args.branch is not None else detected_branch
+
     if "/" in target_str:
         parts = target_str.split("/", 1)
         owner = parts[0].strip()
@@ -488,16 +560,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         is_single_repo = True
     elif args.repo:
         owner = target_str
-        cleaned_repo = normalize_target(args.repo)
+        cleaned_repo, repo_flag_branch = parse_target_ref(args.repo)
         if "/" in cleaned_repo:
             repo_name = cleaned_repo.split("/", 1)[1]
         else:
             repo_name = cleaned_repo
+        if target_branch is None and repo_flag_branch:
+            target_branch = repo_flag_branch
         is_single_repo = True
     else:
         owner = target_str
         repo_name = None
         is_single_repo = False
+
+    if not is_single_repo and target_branch:
+        sys.stderr.write("Error: --branch can only be used when scanning a single repository.\n")
+        return 1
 
     filter_cfg = TreeFilterConfig(
         include_generated=args.include_generated,
@@ -546,6 +624,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     owner=owner,
                     repo_name=repo_name,
                     client=client,
+                    branch=target_branch,
                     filter_config=filter_cfg,
                     ipynb_language=args.ipynb_language,
                     progress=prog,
@@ -573,6 +652,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     stats = scan_action(progress)
             else:
                 stats = scan_action(None)
+
+        if stats is None:
+            return 1
 
         if args.output:
             output_str = render_report(

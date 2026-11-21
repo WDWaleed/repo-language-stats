@@ -24,6 +24,8 @@ class RepoInfo:
     name: str
     owner: str
     default_branch: str = "main"
+    branch: str | None = None
+    tree_sha: str | None = None
     is_fork: bool = False
     is_private: bool = False
     size: int = 0
