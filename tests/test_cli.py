@@ -131,9 +131,10 @@ def test_render_report_dispatch(sample_stats: AggregateStats):
 
 
 def test_missing_username():
-    parser = build_parser()
+    # target is now nargs="?" so argparse alone no longer raises;
+    # the guard lives in main() which calls parser.error() → SystemExit
     with pytest.raises(SystemExit):
-        parser.parse_args([])
+        main([])
 
 
 def test_verbose_flag(caplog):
@@ -1101,6 +1102,14 @@ def test_cli_benchmark_execution(tmp_path: Path, capsys):
     captured = capsys.readouterr()
     assert "Benchmark Profile: octocat/single-repo" in captured.err
     assert "Benchmark report saved to:" in captured.err
+
+
+def test_cli_synthetic_benchmark_standalone(capsys):
+    ret = main(["--synthetic-benchmark"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "Benchmark Profile: Synthetic In-Memory Benchmark" in captured.err
+
 
 
 

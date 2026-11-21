@@ -234,6 +234,7 @@ from repo_language_stats.benchmark import (
     generate_markdown_report,
     print_terminal_benchmark,
     resolve_benchmark_path,
+    run_synthetic_benchmark,
     save_benchmark_report,
 )
 from rich.console import Console
@@ -319,5 +320,21 @@ def test_print_terminal_benchmark():
     assert "Benchmark Profile: octocat/repo1" in output
     assert "Network I/O" in output
     assert "Local CPU Computation" in output
+
+
+def test_run_synthetic_benchmark():
+    bm = run_synthetic_benchmark(file_count=100)
+    assert bm.repos_benchmarked == 1
+    assert bm.files_processed > 0
+    assert bm.lines_counted > 0
+    assert bm.source_bytes_counted > 0
+    assert bm.total_cpu_time_s > 0.0
+    assert bm.cpu_files_per_second > 0.0
+    assert bm.cpu_lines_per_second > 0.0
+    assert bm.t_filter_tree_ns > 0
+    assert bm.t_classify_ns > 0
+    assert bm.t_count_metrics_ns > 0
+    assert bm.t_aggregation_ns > 0
+
 
 

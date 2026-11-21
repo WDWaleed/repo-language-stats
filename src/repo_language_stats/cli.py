@@ -25,6 +25,7 @@ from repo_language_stats.benchmark import (
     generate_markdown_report,
     print_terminal_benchmark,
     resolve_benchmark_path,
+    run_synthetic_benchmark,
     save_benchmark_report,
 )
 from repo_language_stats.counting import (
@@ -171,6 +172,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "target",
         metavar="TARGET",
+        nargs="?",
+        default="",
         help="GitHub username, repository in 'owner/repo' format, or GitHub URL to scan.",
     )
     parser.add_argument(
@@ -281,6 +284,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help="Custom file path for benchmark markdown report (overrides docs/benchmarks/ defaults).",
+    )
+    parser.add_argument(
+        "--synthetic-benchmark",
+        action="store_true",
+        default=False,
+        help="Run an in-memory synthetic benchmark measuring pure CPU compute throughput without network calls.",
     )
     parser.add_argument(
         "-v",
@@ -638,6 +647,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.token = get_env_github_token()
 
     configure_logging(args.verbose)
+
+    if args.synthetic_benchmark:
+        bm = run_synthetic_benchmark(file_count=1000)
+        console = Console(stderr=True)
+        print_terminal_benchmark(bm, target="Synthetic In-Memory Benchmark (1,000 files)", console=console)
+        return 0
+
+    if not args.target:
+        parser.error("the following arguments are required: TARGET")
 
     # Determine whether target is a single repo (owner/repo, URL, or --repo flag) or a user
     target_str, detected_branch = parse_target_ref(args.target)

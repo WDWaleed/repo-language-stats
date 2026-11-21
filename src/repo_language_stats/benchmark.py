@@ -259,6 +259,8 @@ def generate_markdown_report(
     dt = now or datetime.now(timezone.utc)
     dt_str = dt.strftime("%Y-%m-%d %H:%M:%S UTC")
 
+    synthetic_bm = run_synthetic_benchmark(file_count=200)
+
     tracked_time = benchmark.total_network_time_s + benchmark.total_cpu_time_s
 
     def _calc_pct(duration_ns: int) -> float:
@@ -369,6 +371,14 @@ def generate_markdown_report(
 ## 4. Bottleneck Diagnosis & Architectural Verdict
 
 {verdict}
+
+---
+
+## 5. Pure Local Compute Ceiling (In-Memory Baseline)
+
+To evaluate Python's local compute speed in isolation (without remote network latency), a synthetic in-memory workload was benchmarked on this host:
+- **In-Memory Processing Speed:** `{synthetic_bm.cpu_files_per_second:,.0f} files/s` (`{synthetic_bm.cpu_lines_per_second:,.0f} lines/s`)
+- **Time to classify & count 1,000 files locally:** `{1000.0 / max(synthetic_bm.cpu_files_per_second, 1.0):.3f}s`
 """
     return report.strip()
 
@@ -436,4 +446,106 @@ def print_terminal_benchmark(
 
     con.print("\n")
     con.print(table)
+
+
+def run_synthetic_benchmark(file_count: int = 1000) -> BenchmarkCollector:
+    """Run an in-memory synthetic benchmark measuring pure local CPU throughput.
+
+    Generates a realistic mixed repository workload (Python, TypeScript, Markdown,
+    Vendored packages, Jupyter notebooks, JSON configs) in memory to measure maximum
+    processing capacity (files/s and lines/s) completely independent of network latency.
+    """
+    from repo_language_stats.counting import (
+        StatsAccumulator,
+        count_bytes,
+        count_lines,
+    )
+    from repo_language_stats.discovery import TreeEntry, TreeFilterConfig, filter_tree
+    from repo_language_stats.language import classify, is_notebook
+    from repo_language_stats.notebook import parse_notebook
+
+    py_code = b"def calculate(n: int) -> int:\n    result = 0\n    for i in range(n):\n        result += i * 2\n    return result\n" * 10
+    ts_code = b"import React from 'react';\nexport const Widget = () => {\n  return <div>Component Content</div>;\n};\n" * 10
+    md_text = b"# Documentation Guide\n\nThis is a sample markdown file explaining architecture.\n" * 10
+    json_text = b'{\n  "name": "package",\n  "version": "1.0.0",\n  "private": true\n}\n' * 5
+    ipynb_json = b'{"cells":[{"cell_type":"code","execution_count":1,"metadata":{},"outputs":[],"source":["import math\\n","print(math.pi)\\n"]}],"metadata":{"kernelspec":{"display_name":"Python 3","language":"python","name":"python3"}},"nbformat":4,"nbformat_minor":4}'
+
+    entries: list[tuple[TreeEntry, bytes]] = []
+    for i in range(file_count):
+        mod = i % 10
+        if mod in (0, 1, 2, 3):  # 40% Python
+            path = f"src/package/module_{i}.py"
+            content = py_code
+        elif mod in (4, 5):      # 20% TypeScript
+            path = f"frontend/components/Widget_{i}.tsx"
+            content = ts_code
+        elif mod == 6:           # 10% Vendored
+            path = f"node_modules/library_{i}/index.js"
+            content = ts_code
+        elif mod == 7:           # 10% Markdown docs
+            path = f"docs/guides/topic_{i}.md"
+            content = md_text
+        elif mod == 8:           # 10% JSON / Config
+            path = f"configs/settings_{i}.json"
+            content = json_text
+        else:                    # 10% Notebooks
+            path = f"notebooks/experiment_{i}.ipynb"
+            content = ipynb_json
+
+        entries.append((TreeEntry(path=path, type="blob", size=len(content)), content))
+
+    bm = BenchmarkCollector()
+    accumulator = StatsAccumulator(username="synthetic-benchmark-repo")
+    filter_cfg = TreeFilterConfig()
+
+    content_map = {entry.path: content for entry, content in entries}
+    tree_entries = [entry for entry, _ in entries]
+
+    with bm.measure("wall_clock"):
+        bm.repos_benchmarked = 1
+
+        with bm.measure("filter_tree"):
+            eligible = filter_tree(tree_entries, config=filter_cfg)
+
+        for entry in eligible:
+            blob_content = content_map.get(entry.path, b"")
+
+            if is_notebook(entry.path):
+                with bm.measure("parse_notebook"):
+                    nb_res = parse_notebook(content=blob_content, fallback_language="Python", file_path=entry.path)
+                if nb_res:
+                    with bm.measure("aggregation"):
+                        accumulator.add_stats(
+                            language="Python",
+                            bytes_count=nb_res.total_bytes,
+                            lines_count=nb_res.total_lines,
+                            files_count=1,
+                            repo_name="synthetic-benchmark-repo",
+                        )
+                    bm.record_source_bytes(nb_res.total_bytes)
+                    bm.record_file_processed(lines=nb_res.total_lines)
+            else:
+                with bm.measure("classify"):
+                    lang = classify(entry.path)
+                if lang:
+                    with bm.measure("count_metrics"):
+                        b_cnt = count_bytes(blob_content)
+                        l_cnt = count_lines(blob_content)
+                    with bm.measure("aggregation"):
+                        accumulator.add_stats(
+                            language=lang,
+                            bytes_count=b_cnt,
+                            lines_count=l_cnt,
+                            files_count=1,
+                            repo_name="synthetic-benchmark-repo",
+                        )
+                    bm.record_source_bytes(b_cnt)
+                    bm.record_file_processed(lines=l_cnt)
+
+        with bm.measure("aggregation"):
+            accumulator.finish_repo(skipped=False)
+            accumulator.finalize()
+
+    return bm
+
 
