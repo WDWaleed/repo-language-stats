@@ -5,6 +5,8 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
+from pathlib import Path
 import sys
 from typing import Any
 
@@ -93,7 +95,9 @@ def print_table(
     con = console or Console()
 
     branch_suffix = f" (branch: {stats.branch})" if stats.branch else ""
-    con.print(f"\n[bold]GitHub Language Statistics for:[/bold] [green]{stats.username}{branch_suffix}[/green]")
+    is_local = os.path.isabs(stats.username) or (Path(stats.username).exists() and Path(stats.username).is_dir())
+    header_title = "Language Statistics for:" if is_local else "GitHub Language Statistics for:"
+    con.print(f"\n[bold]{header_title}[/bold] [green]{stats.username}{branch_suffix}[/green]")
     con.print(f"Repositories scanned: {stats.repos_scanned} │ Skipped: {stats.repos_skipped}\n")
 
     if per_repo and stats.per_repo:

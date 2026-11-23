@@ -9,6 +9,7 @@ notebook-parsing logic is reused unchanged.
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Sequence
 
@@ -30,27 +31,41 @@ from repo_language_stats.notebook import parse_notebook
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_LOCAL_EXCLUDED_DIRS: frozenset[str] = frozenset(
+    {
+        ".git",
+        ".svn",
+        ".hg",
+        ".venv",
+        "venv",
+        ".env",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        "__pycache__",
+        ".tox",
+        ".nox",
+    }
+)
+
+
 def _walk_directory(root: Path) -> list[TreeEntry]:
     """Recursively walk *root* and return one TreeEntry per regular file.
 
-    - The ``.git/`` directory is always skipped.
+    - Standard VCS metadata, virtual environments, and cache directories
+      are pruned during traversal for performance and accurate counts.
     - Paths are stored relative to *root* using POSIX separators so they
       are identical in shape to what the GitHub Git Trees API returns.
     """
     entries: list[TreeEntry] = []
-    for item in root.rglob("*"):
-        # Skip .git/ and anything inside it
-        try:
-            item.relative_to(root / ".git")
-            continue  # inside .git – skip
-        except ValueError:
-            pass  # not inside .git – proceed
+    root_resolved = root.resolve()
+    for dirpath, dirnames, filenames in os.walk(root_resolved):
+        dirnames[:] = [d for d in dirnames if d not in DEFAULT_LOCAL_EXCLUDED_DIRS]
 
-        if not item.is_file():
-            continue
-
-        rel = item.relative_to(root).as_posix()
-        entries.append(TreeEntry(path=rel, type="blob"))
+        rel_dir = Path(dirpath).relative_to(root_resolved)
+        for fname in filenames:
+            rel_file = (rel_dir / fname).as_posix() if str(rel_dir) != "." else fname
+            entries.append(TreeEntry(path=rel_file, type="blob"))
 
     return entries
 

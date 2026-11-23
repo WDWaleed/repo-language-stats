@@ -69,6 +69,17 @@ def test_walk_directory_skips_git_dir(tmp_path: Path) -> None:
     assert "app.py" in paths
 
 
+def test_walk_directory_skips_venv_and_caches(tmp_path: Path) -> None:
+    _write(tmp_path / ".venv" / "lib.py")
+    _write(tmp_path / "venv" / "lib2.py")
+    _write(tmp_path / "__pycache__" / "cached.py")
+    _write(tmp_path / ".pytest_cache" / "v" / "cache.py")
+    _write(tmp_path / "app.py")
+    entries = _walk_directory(tmp_path)
+    paths = {e.path for e in entries}
+    assert paths == {"app.py"}
+
+
 def test_walk_directory_all_entries_are_blob_type(tmp_path: Path) -> None:
     _write(tmp_path / "foo.py")
     _write(tmp_path / "bar.ts")

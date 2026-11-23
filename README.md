@@ -19,6 +19,7 @@ Unlike GitHub's built-in language bar, **repo-language-stats** provides dual met
 - [Usage & Examples](#usage--examples)
   - [Scan a Full GitHub User Account](#scan-a-full-github-user-account)
   - [Scan a Single Repository](#scan-a-single-repository)
+  - [Scan a Local Repository](#scan-a-local-repository)
   - [Display Options (`--show-files`, `--per-repo`)](#display-options)
   - [Inclusion & Exclusion Flags (`--all`, `--include-*`)](#inclusion--exclusion-flags)
   - [Exporting Results (JSON, CSV, File Output)](#exporting-results)
@@ -36,6 +37,7 @@ Unlike GitHub's built-in language bar, **repo-language-stats** provides dual met
 - **Dual-Metric Line & Byte Counting**: Accurately counts non-binary file bytes and physical source code lines (`\n`), presenting percentage shares for both.
 - **Jupyter Notebook Code Extraction**: Parses `.ipynb` notebooks via `nbformat`, extracting _only_ executable code cells. Strips markdown prose, cell execution outputs, and large base64-encoded plot images.
 - **Single-Repo & User-Wide Scanning**: Scan all non-fork repositories for any GitHub username, or inspect a single repository via `owner/repo` positional syntax or `--repo <name>`.
+- **Local Repository Scanning**: Scan any local repository or directory on disk instantly without network calls or tokens (`repo-language-stats .`), fully compatible with all exclusion filters and notebook parsing.
 - **Sensible, Code-Centric Exclusions**: Data files, configs, and graphics (`.json`, `.jsonc`, `.csv`, `.yaml`, `.toml`, `.svg`, `.env*`) are filtered out by default so your language charts reflect actual source code rather than massive configuration manifests or datasets.
 - **Unified Language Groupings**:
   - `.tsx` files are unified with TypeScript under **`TypeScript`**.
@@ -178,6 +180,23 @@ repo-language-stats https://github.com/WDWaleed/repo-language-stats/tree/develop
 repo-language-stats WDWaleed/repo-language-stats@develop
 ```
 
+### Scan a Local Repository
+
+Scan a local directory on your filesystem without making any GitHub API calls or needing a token. Local paths are automatically detected, or you can pass `--local`:
+
+```bash
+# Scan current directory:
+repo-language-stats .
+
+# Scan a relative or absolute directory path:
+repo-language-stats ./my-project
+repo-language-stats ../other-repo
+repo-language-stats /path/to/project
+
+# Force local mode (useful if directory name matches a GitHub username):
+repo-language-stats my-repo --local
+```
+
 ### Display Options
 
 #### Show File Counts
@@ -302,7 +321,7 @@ usage: repo-language-stats [-h] [--repo REPO] [-b BRANCH] [--token [TOKEN]]
                            [--exclude-pattern EXCLUDE_PATTERNS] [--per-repo]
                            [--show-files] [--format {table,json,csv}]
                            [-o OUTPUT] [--ipynb-language IPYNB_LANGUAGE]
-                           [--benchmark] [--synthetic-benchmark] [-v]
+                           [--local] [--benchmark] [--synthetic-benchmark] [-v]
                            [TARGET]
 ```
 
@@ -310,7 +329,8 @@ usage: repo-language-stats [-h] [--repo REPO] [-b BRANCH] [--token [TOKEN]]
 
 | Option                      | Description                                                                                                                                                                                                          |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TARGET`                    | GitHub username (e.g. `WDWaleed`), single repository in `owner/repo` format (e.g. `WDWaleed/repo-language-stats`), or full GitHub repository / profile URL (e.g. `https://github.com/WDWaleed/repo-language-stats`). |
+| `TARGET`                    | GitHub username (e.g. `WDWaleed`), repository in `owner/repo` format, GitHub URL, or local directory path (e.g. `.` or `/path/to/project`).                                                                           |
+| `--local`                   | Force treat `TARGET` as a local directory path rather than a GitHub username or repository.                                                                                                                           |
 | `--repo REPO`               | Specific repository name to scan when `TARGET` is a username.                                                                                                                                                        |
 | `-b, --branch BRANCH`       | Specific branch or Git ref to scan (single repository mode only; defaults to repository's default branch).                                                                                                           |
 | `--token [TOKEN]`           | GitHub personal access token (if passed without a value, automatically uses `GITHUB_TOKEN` from `.env`; defaults to `GITHUB_TOKEN` environment variable).                                                            |
