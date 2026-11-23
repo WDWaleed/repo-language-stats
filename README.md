@@ -195,6 +195,9 @@ repo-language-stats /path/to/project
 
 # Force local mode (useful if directory name matches a GitHub username):
 repo-language-stats my-repo --local
+
+# Scan all files on disk, ignoring .gitignore rules:
+repo-language-stats . --no-gitignore
 ```
 
 ### Display Options
@@ -321,7 +324,8 @@ usage: repo-language-stats [-h] [--repo REPO] [-b BRANCH] [--token [TOKEN]]
                            [--exclude-pattern EXCLUDE_PATTERNS] [--per-repo]
                            [--show-files] [--format {table,json,csv}]
                            [-o OUTPUT] [--ipynb-language IPYNB_LANGUAGE]
-                           [--local] [--benchmark] [--synthetic-benchmark] [-v]
+                           [--local] [--no-gitignore] [--benchmark]
+                           [--synthetic-benchmark] [-v]
                            [TARGET]
 ```
 
@@ -331,6 +335,7 @@ usage: repo-language-stats [-h] [--repo REPO] [-b BRANCH] [--token [TOKEN]]
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `TARGET`                    | GitHub username (e.g. `WDWaleed`), repository in `owner/repo` format, GitHub URL, or local directory path (e.g. `.` or `/path/to/project`).                                                                           |
 | `--local`                   | Force treat `TARGET` as a local directory path rather than a GitHub username or repository.                                                                                                                           |
+| `--no-gitignore`            | Do not respect `.gitignore` rules during local scans; scan all files on disk (excluding `.git/`).                                                                                                                    |
 | `--repo REPO`               | Specific repository name to scan when `TARGET` is a username.                                                                                                                                                        |
 | `-b, --branch BRANCH`       | Specific branch or Git ref to scan (single repository mode only; defaults to repository's default branch).                                                                                                           |
 | `--token [TOKEN]`           | GitHub personal access token (if passed without a value, automatically uses `GITHUB_TOKEN` from `.env`; defaults to `GITHUB_TOKEN` environment variable).                                                            |

@@ -14,7 +14,7 @@ Planned features and enhancements for `repo-language-stats`.
 
 - **Benchmarking** — Added `--benchmark` and `--synthetic-benchmark` flags. `--benchmark` instruments the full scan pipeline, separating network I/O time from local CPU computation time, tracking wire payload sizes and effective bandwidth, and writing a Markdown report to `docs/benchmarks/`. `--synthetic-benchmark` runs a pure in-memory CPU workload (no network) to establish a local compute ceiling — useful for assessing whether a Rust rewrite would yield meaningful gains. See [docs/benchmarks/](benchmarks/) for real benchmark results.
 
-- **Local Repository Scanning** — Analyse a local Git repository or directory on disk without making any API calls, using the working tree directly via auto-detected local paths (`.` or path syntax) or the `--local` flag. See [docs/local_scan.md](local_scan.md).
+- **Local Repository Scanning** — Analyse a local Git repository or directory on disk without making any API calls, using the working tree directly via auto-detected local paths (`.` or path syntax) or the `--local` flag. Respects `.gitignore` rules by default, with `--no-gitignore` available as an override. See [docs/local_scan.md](local_scan.md).
 
 ---
 

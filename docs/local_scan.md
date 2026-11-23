@@ -22,6 +22,9 @@ repo-language-stats "C:\Users\User\Projects\repo-language-stats"
 
 # Force local interpretation with --local (useful if folder matches a username)
 repo-language-stats my-repo --local
+
+# Scan all files on disk, ignoring .gitignore rules
+repo-language-stats . --no-gitignore
 ```
 
 ---
@@ -29,7 +32,12 @@ repo-language-stats my-repo --local
 ## How It Works
 
 1. **Target Detection**: When `TARGET` exists as a directory on disk, or when `--local` is provided, `repo-language-stats` routes the scan to `local_scanner.py` instead of the GitHub REST API client.
-2. **Directory Traversal**: The scanner walks the directory tree recursively. The `.git/` directory and all internal Git metadata are automatically excluded from the scan.
+2. **Gitignore Resolution & Directory Traversal**:
+   - By default, files and directories matched by `.gitignore` are excluded from the scan.
+   - **Git Repositories (Tier 1)**: In Git repositories, `repo-language-stats` queries Git's native engine (`git ls-files -z --cached --others --exclude-standard`). This includes both tracked files and uncommitted working-tree files, while automatically excluding anything matched by root `.gitignore`, nested `.gitignore` files, `.git/info/exclude`, or global gitignore.
+   - **Non-Git Directories (Tier 2)**: If Git is not installed or the directory is not a Git repo, the scanner falls back to reading root `.gitignore` patterns and pruning matching paths during traversal.
+   - Standard VCS metadata (`.git/`, `.svn/`, `.hg/`), virtual environments (`.venv/`, `venv/`), and build/test caches (`__pycache__/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `.tox/`) are always pruned.
+   - Passing `--no-gitignore` disables `.gitignore` filtering and scans all files on disk (excluding `.git/`).
 3. **Filtering**: The existing Linguist-based file discovery filter (`filter_tree`) applies identical exclusion rules:
    - Binaries are detected and skipped.
    - Vendored dependencies (e.g. `node_modules/`, `vendor/`) are excluded (unless `--include-vendored` is passed).
@@ -60,6 +68,7 @@ All standard reporting and filtering flags work with local scanning:
 | `--all` | |
 | `--exclude-pattern` | |
 | `--ipynb-language` | |
+| `--no-gitignore` | |
 | `--benchmark` | |
 
 ---
