@@ -296,6 +296,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--no-gitignore",
+        action="store_true",
+        default=False,
+        help="Do not respect .gitignore rules; scan all files on disk (excluding .git).",
+    )
+    parser.add_argument(
         "--synthetic-benchmark",
         action="store_true",
         default=False,
@@ -714,6 +720,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         benchmark: BenchmarkCollector | None = BenchmarkCollector() if args.benchmark else None
 
+        respect_gitignore = not getattr(args, "no_gitignore", False)
+
         try:
             if benchmark:
                 with benchmark.measure("wall_clock"):
@@ -722,12 +730,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                         filter_config=filter_cfg,
                         ipynb_language=args.ipynb_language,
                         benchmark=benchmark,
+                        respect_gitignore=respect_gitignore,
                     )
             else:
                 stats = local_scan(
                     path=local_path,
                     filter_config=filter_cfg,
                     ipynb_language=args.ipynb_language,
+                    respect_gitignore=respect_gitignore,
                 )
         except (FileNotFoundError, NotADirectoryError) as exc:
             sys.stderr.write(f"Error: {exc}\n")

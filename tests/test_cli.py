@@ -1254,3 +1254,44 @@ def test_cli_local_benchmark_flag(tmp_path: "Path", capsys) -> None:  # type: ig
     assert "Local CPU" in captured.err
     # Network I/O row should show 0 or near-0 (all time is CPU)
     assert "Network I/O" in captured.err
+
+
+def test_cli_local_respects_gitignore_by_default(tmp_path: "Path", capsys) -> None:  # type: ignore[name-defined]
+    """Local scan excludes gitignored files by default."""
+    import subprocess
+    subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.name", "Tester"], cwd=str(tmp_path), capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=str(tmp_path), capture_output=True)
+
+    _write(tmp_path / ".gitignore", "ignored.py\n")
+    _write(tmp_path / "app.py", "x = 1\n")
+    _write(tmp_path / "ignored.py", "secret_long_variable = 123456789\n")
+    subprocess.run(["git", "add", ".gitignore", "app.py"], cwd=str(tmp_path), capture_output=True, check=True)
+
+    ret = main([str(tmp_path), "--format", "json", "--show-files"])
+    assert ret == 0
+    import json as _json
+    data = _json.loads(capsys.readouterr().out)
+    py_info = next(item for item in data["languages"] if item["language"] == "Python")
+    assert py_info["files"] == 1
+
+
+def test_cli_local_no_gitignore_flag(tmp_path: "Path", capsys) -> None:  # type: ignore[name-defined]
+    """--no-gitignore includes gitignored files in the scan."""
+    import subprocess
+    subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.name", "Tester"], cwd=str(tmp_path), capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=str(tmp_path), capture_output=True)
+
+    _write(tmp_path / ".gitignore", "ignored.py\n")
+    _write(tmp_path / "app.py", "x = 1\n")
+    _write(tmp_path / "ignored.py", "y = 2\n")
+    subprocess.run(["git", "add", ".gitignore", "app.py"], cwd=str(tmp_path), capture_output=True, check=True)
+
+    ret = main([str(tmp_path), "--format", "json", "--show-files", "--no-gitignore"])
+    assert ret == 0
+    import json as _json
+    data = _json.loads(capsys.readouterr().out)
+    py_info = next(item for item in data["languages"] if item["language"] == "Python")
+    assert py_info["files"] == 2
+
