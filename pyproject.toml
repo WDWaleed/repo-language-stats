@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 repo-language-stats = "repo_language_stats.cli:main"
+rls = "repo_language_stats.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.13.6,<0.14.0"]

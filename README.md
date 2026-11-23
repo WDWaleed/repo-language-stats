@@ -98,6 +98,10 @@ pip install git+https://github.com/WDWaleed/repo-language-stats
 git clone https://github.com/WDWaleed/repo-language-stats.git
 cd repo-language-stats
 uv sync
+
+# Run using the full command or shorthand alias 'rls':
+uv run repo-language-stats .
+uv run rls .
 ```
 
 ---
@@ -315,6 +319,8 @@ repo-language-stats --synthetic-benchmark
 ---
 
 ## CLI Reference
+
+> **Tip:** You can use `rls` as a shorthand alias anywhere instead of `repo-language-stats` (e.g. `uv run rls .` or `rls WDWaleed`).
 
 ```
 usage: repo-language-stats [-h] [--repo REPO] [-b BRANCH] [--token [TOKEN]]
