@@ -8,9 +8,11 @@ notebook-parsing logic is reused unchanged.
 
 from __future__ import annotations
 
+from fnmatch import fnmatch
 import logging
 import os
 from pathlib import Path
+import subprocess
 from typing import Sequence
 
 from repo_language_stats.benchmark import BenchmarkCollector
@@ -49,22 +51,148 @@ DEFAULT_LOCAL_EXCLUDED_DIRS: frozenset[str] = frozenset(
 )
 
 
-def _walk_directory(root: Path) -> list[TreeEntry]:
-    """Recursively walk *root* and return one TreeEntry per regular file.
+def _get_git_working_tree_files(root: Path) -> list[str] | None:
+    """Query git for tracked and non-ignored working tree files.
 
-    - Standard VCS metadata, virtual environments, and cache directories
-      are pruned during traversal for performance and accurate counts.
-    - Paths are stored relative to *root* using POSIX separators so they
-      are identical in shape to what the GitHub Git Trees API returns.
+    Runs ``git ls-files -z --cached --others --exclude-standard`` in *root*.
+    Returns a list of relative POSIX path strings if inside a git repository
+    and git is installed; returns None otherwise.
     """
-    entries: list[TreeEntry] = []
+    try:
+        proc = subprocess.run(
+            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            cwd=str(root),
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            return None
+        raw = proc.stdout
+        if not raw:
+            return []
+        items = raw.split(b"\0")
+        files: list[str] = []
+        for item in items:
+            if not item:
+                continue
+            path_str = item.decode("utf-8", errors="replace").replace("\\", "/")
+            files.append(path_str)
+        return files
+    except (FileNotFoundError, OSError):
+        return None
+
+
+def _parse_gitignore(gitignore_path: Path) -> list[tuple[bool, str]]:
+    """Parse a .gitignore file into a list of (is_negation, pattern) pairs."""
+    rules: list[tuple[bool, str]] = []
+    if not gitignore_path.is_file():
+        return rules
+    try:
+        content = gitignore_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return rules
+
+    for line in content.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        is_neg = False
+        if line.startswith("!"):
+            is_neg = True
+            line = line[1:].strip()
+        rules.append((is_neg, line))
+    return rules
+
+
+def _matches_gitignore_rules(
+    rel_path: str,
+    is_dir: bool,
+    rules: list[tuple[bool, str]],
+) -> bool:
+    """Check if a relative path matches parsed gitignore rules."""
+    norm_path = rel_path.replace("\\", "/").strip("/")
+    parts = norm_path.split("/")
+    ignored = False
+
+    for is_neg, pat in rules:
+        pat = pat.replace("\\", "/")
+        dir_only = pat.endswith("/")
+        pat_clean = pat.rstrip("/")
+
+        if dir_only and not is_dir:
+            # Check if any parent directory component matches
+            matched = False
+            for i in range(len(parts) - 1):
+                sub_dir = "/".join(parts[: i + 1])
+                sub_name = parts[i]
+                if "/" in pat_clean:
+                    if fnmatch(sub_dir, pat_clean.lstrip("/")):
+                        matched = True
+                        break
+                else:
+                    if fnmatch(sub_name, pat_clean):
+                        matched = True
+                        break
+            if matched:
+                ignored = not is_neg
+            continue
+
+        if "/" in pat_clean:
+            rule_pat = pat_clean.lstrip("/")
+            if fnmatch(norm_path, rule_pat) or fnmatch(norm_path, f"{rule_pat}/*"):
+                ignored = not is_neg
+        else:
+            if fnmatch(parts[-1], pat_clean) or any(fnmatch(p, pat_clean) for p in parts):
+                ignored = not is_neg
+
+    return ignored
+
+
+def _walk_directory(root: Path, respect_gitignore: bool = True) -> list[TreeEntry]:
+    """Recursively walk *root* and return one TreeEntry per eligible regular file.
+
+    - If *respect_gitignore* is True, git-native discovery is attempted first.
+      If git is unavailable or the directory is not a Git repo, falls back to
+      pure-Python .gitignore pattern matching.
+    - Standard VCS metadata, virtual environments, and cache directories
+      are always pruned during directory walking.
+    - Paths are stored relative to *root* using POSIX separators.
+    """
     root_resolved = root.resolve()
+
+    if respect_gitignore:
+        git_files = _get_git_working_tree_files(root_resolved)
+        if git_files is not None:
+            entries: list[TreeEntry] = []
+            for rel in git_files:
+                abs_f = root_resolved / rel
+                if abs_f.is_file():
+                    entries.append(TreeEntry(path=rel, type="blob"))
+            return entries
+
+    # Fallback or respect_gitignore=False: standard filesystem walk
+    rules: list[tuple[bool, str]] = []
+    if respect_gitignore:
+        rules = _parse_gitignore(root_resolved / ".gitignore")
+
+    entries = []
     for dirpath, dirnames, filenames in os.walk(root_resolved):
         dirnames[:] = [d for d in dirnames if d not in DEFAULT_LOCAL_EXCLUDED_DIRS]
 
         rel_dir = Path(dirpath).relative_to(root_resolved)
+
+        if respect_gitignore and rules:
+            pruned_dirs = []
+            for d in dirnames:
+                dir_rel = (rel_dir / d).as_posix() if str(rel_dir) != "." else d
+                if not _matches_gitignore_rules(dir_rel, is_dir=True, rules=rules):
+                    pruned_dirs.append(d)
+            dirnames[:] = pruned_dirs
+
         for fname in filenames:
             rel_file = (rel_dir / fname).as_posix() if str(rel_dir) != "." else fname
+            if respect_gitignore and rules and _matches_gitignore_rules(rel_file, is_dir=False, rules=rules):
+                continue
             entries.append(TreeEntry(path=rel_file, type="blob"))
 
     return entries
@@ -166,6 +294,7 @@ def local_scan(
     filter_config: TreeFilterConfig | None = None,
     ipynb_language: str | None = None,
     benchmark: BenchmarkCollector | None = None,
+    respect_gitignore: bool = True,
 ) -> AggregateStats:
     """Scan a local directory and return language statistics.
 
@@ -183,6 +312,8 @@ def local_scan(
         Optional :class:`BenchmarkCollector` to record CPU-side timings.
         Network categories will remain at zero — a local scan produces a
         pure CPU profile.
+    respect_gitignore:
+        Whether to exclude files matched by .gitignore.  Defaults to True.
 
     Returns
     -------
@@ -201,14 +332,14 @@ def local_scan(
     accumulator = StatsAccumulator(username=str(root))
     bm = benchmark
 
-    logger.info("Local scan: walking %s", root)
+    logger.info("Local scan: walking %s (respect_gitignore=%s)", root, respect_gitignore)
     accumulator.start_repo(repo_name)
 
     if bm:
         bm.repos_benchmarked += 1
 
     # --- Walk directory tree ------------------------------------------------
-    all_entries: list[TreeEntry] = _walk_directory(root)
+    all_entries: list[TreeEntry] = _walk_directory(root, respect_gitignore=respect_gitignore)
     logger.debug("Found %d total filesystem entries under %s", len(all_entries), root)
 
     # --- Apply the same filter_tree logic used for GitHub trees -------------

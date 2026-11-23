@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import subprocess
 
 import pytest
 
 from repo_language_stats.benchmark import BenchmarkCollector
 from repo_language_stats.discovery import TreeFilterConfig
-from repo_language_stats.local_scanner import local_scan, _walk_directory
+from repo_language_stats.local_scanner import (
+    _matches_gitignore_rules,
+    _parse_gitignore,
+    _walk_directory,
+    local_scan,
+)
 from repo_language_stats.counting import AggregateStats
 
 
@@ -327,3 +333,106 @@ def test_local_scan_no_benchmark_still_works(tmp_path: Path) -> None:
     _write(tmp_path / "app.py", "pass\n")
     result = local_scan(tmp_path, benchmark=None)
     assert "Python" in result.aggregate
+
+
+# ---------------------------------------------------------------------------
+# .gitignore filtering tests
+# ---------------------------------------------------------------------------
+
+def test_parse_gitignore(tmp_path: Path) -> None:
+    gi = tmp_path / ".gitignore"
+    gi.write_text(
+        "# Comment\n"
+        "\n"
+        "dist/\n"
+        "*.log\n"
+        "!important.log\n"
+        "/build\n",
+        encoding="utf-8",
+    )
+    rules = _parse_gitignore(gi)
+    assert rules == [
+        (False, "dist/"),
+        (False, "*.log"),
+        (True, "important.log"),
+        (False, "/build"),
+    ]
+
+
+def test_matches_gitignore_rules() -> None:
+    rules = [
+        (False, "dist/"),
+        (False, "*.log"),
+        (True, "important.log"),
+        (False, "/build"),
+    ]
+    assert _matches_gitignore_rules("dist", is_dir=True, rules=rules) is True
+    assert _matches_gitignore_rules("dist/bundle.js", is_dir=False, rules=rules) is True
+    assert _matches_gitignore_rules("app.log", is_dir=False, rules=rules) is True
+    assert _matches_gitignore_rules("important.log", is_dir=False, rules=rules) is False
+    assert _matches_gitignore_rules("src/app.py", is_dir=False, rules=rules) is False
+    assert _matches_gitignore_rules("build/output.js", is_dir=False, rules=rules) is True
+
+
+def test_walk_directory_with_fallback_gitignore(tmp_path: Path) -> None:
+    """Non-git directory with .gitignore uses pure-Python fallback."""
+    _write(tmp_path / ".gitignore", "ignored.py\ndist/\n")
+    _write(tmp_path / "app.py", "pass\n")
+    _write(tmp_path / "ignored.py", "pass\n")
+    _write(tmp_path / "dist" / "bundle.py", "pass\n")
+
+    entries = _walk_directory(tmp_path, respect_gitignore=True)
+    paths = {e.path for e in entries}
+    assert "app.py" in paths
+    assert "ignored.py" not in paths
+    assert "dist/bundle.py" not in paths
+
+
+def test_walk_directory_respect_gitignore_false(tmp_path: Path) -> None:
+    """When respect_gitignore=False, gitignored files are included."""
+    _write(tmp_path / ".gitignore", "ignored.py\n")
+    _write(tmp_path / "app.py", "pass\n")
+    _write(tmp_path / "ignored.py", "pass\n")
+
+    entries = _walk_directory(tmp_path, respect_gitignore=False)
+    paths = {e.path for e in entries}
+    assert "app.py" in paths
+    assert "ignored.py" in paths
+
+
+def test_local_scan_git_repo_excludes_gitignored_files(tmp_path: Path) -> None:
+    """In a real git repo, git ls-files excludes gitignored files by default."""
+    # Initialize a temporary git repository
+    subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True)
+    # Configure user name/email to ensure git commands work in sandbox
+    subprocess.run(["git", "config", "user.name", "Tester"], cwd=str(tmp_path), capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=str(tmp_path), capture_output=True)
+
+    _write(tmp_path / ".gitignore", "ignored.py\nscratch/\n")
+    _write(tmp_path / "app.py", "print('tracked')\n")
+    _write(tmp_path / "untracked.py", "print('untracked')\n")
+    _write(tmp_path / "ignored.py", "print('ignored')\n")
+    _write(tmp_path / "scratch" / "temp.py", "print('scratch')\n")
+
+    # Track app.py
+    subprocess.run(["git", "add", "app.py", ".gitignore"], cwd=str(tmp_path), capture_output=True, check=True)
+
+    result = local_scan(tmp_path, respect_gitignore=True)
+    assert "Python" in result.aggregate
+    # Only app.py (tracked) and untracked.py (untracked non-ignored) should be scanned
+    assert result.aggregate["Python"].file_count == 2
+
+
+def test_local_scan_respect_gitignore_false_flag(tmp_path: Path) -> None:
+    """When respect_gitignore=False, gitignored files are scanned."""
+    subprocess.run(["git", "init"], cwd=str(tmp_path), capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.name", "Tester"], cwd=str(tmp_path), capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=str(tmp_path), capture_output=True)
+
+    _write(tmp_path / ".gitignore", "ignored.py\n")
+    _write(tmp_path / "app.py", "x = 1\n")
+    _write(tmp_path / "ignored.py", "y = 2\n")
+
+    result = local_scan(tmp_path, respect_gitignore=False)
+    assert result.aggregate["Python"].file_count == 2
+
