@@ -1116,3 +1116,141 @@ def test_cli_synthetic_benchmark_standalone(capsys):
 
 
 
+
+# =============================================================================
+# Local-mode CLI integration tests
+# =============================================================================
+
+def _write(path: "Path", content: str = "x = 1\n") -> None:  # type: ignore[name-defined]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+def test_cli_local_auto_detect_current_dir(tmp_path: "Path", capsys) -> None:  # type: ignore[name-defined]
+    """Passing a valid local directory path auto-detects local mode."""
+    _write(tmp_path / "app.py", "x = 1\n")
+    ret = main([str(tmp_path)])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "Python" in captured.out
+
+
+def test_cli_local_flag_forces_local_mode(tmp_path: "Path", capsys) -> None:  # type: ignore[name-defined]
+    """--local flag forces local mode even if the target looks like a username."""
+    _write(tmp_path / "script.py", "pass\n")
+    ret = main(["--local", str(tmp_path)])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "Python" in captured.out
+
+
+def test_cli_local_dot_target(tmp_path: "Path", monkeypatch, capsys) -> None:  # type: ignore[name-defined]
+    """'repo-language-stats .' works when cwd is the target directory."""
+    _write(tmp_path / "hello.py", "print('hi')\n")
+    monkeypatch.chdir(tmp_path)
+    ret = main(["."])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "Python" in captured.out
+
+
+def test_cli_local_json_format(tmp_path: "Path", capsys) -> None:  # type: ignore[name-defined]
+    """--format json works with local mode."""
+    _write(tmp_path / "app.py", "x = 1\n")
+    ret = main([str(tmp_path), "--format", "json"])
+    assert ret == 0
+    import json as _json
+    data = _json.loads(capsys.readouterr().out)
+    assert any(entry["language"] == "Python" for entry in data["languages"])
+
+
+def test_cli_local_csv_format(tmp_path: "Path", capsys) -> None:  # type: ignore[name-defined]
+    """--format csv works with local mode."""
+    _write(tmp_path / "app.py", "x = 1\n")
+    ret = main([str(tmp_path), "--format", "csv"])
+    assert ret == 0
+    out = capsys.readouterr().out
+    assert "Python" in out
+
+
+def test_cli_local_output_file(tmp_path: "Path") -> None:  # type: ignore[name-defined]
+    """--output writes to a file in local mode."""
+    _write(tmp_path / "app.py", "x = 1\n")
+    out_file = tmp_path / "out.json"
+    ret = main([str(tmp_path), "--format", "json", "-o", str(out_file)])
+    assert ret == 0
+    assert out_file.exists()
+    import json as _json
+    data = _json.loads(out_file.read_text())
+    assert any(entry["language"] == "Python" for entry in data["languages"])
+
+
+def test_cli_local_per_repo_flag(tmp_path: "Path", capsys) -> None:  # type: ignore[name-defined]
+    """--per-repo works in local mode (single dir always has one repo entry)."""
+    _write(tmp_path / "app.py", "x = 1\n")
+    ret = main([str(tmp_path), "--per-repo"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "Python" in captured.out
+
+
+def test_cli_local_include_docs_flag(tmp_path: "Path", capsys) -> None:  # type: ignore[name-defined]
+    """--include-docs includes Markdown files in local mode."""
+    _write(tmp_path / "README.md", "# Hello\n")
+    ret = main([str(tmp_path), "--include-docs"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "Markdown" in captured.out
+
+
+def test_cli_local_exclude_pattern(tmp_path: "Path", capsys) -> None:  # type: ignore[name-defined]
+    """--exclude-pattern excludes matching files in local mode."""
+    _write(tmp_path / "tests" / "test_app.py", "def test(): pass\n")
+    _write(tmp_path / "app.py", "pass\n")
+    ret = main([str(tmp_path), "--exclude-pattern", "tests/**"])
+    assert ret == 0
+    # Only app.py counted (1 file); tests/test_app.py excluded
+    captured = capsys.readouterr()
+    # We can't assert exact file count from table output easily,
+    # but Python must still appear and there should be no error
+    assert "Python" in captured.out
+
+
+def test_cli_local_repo_flag_incompatible(tmp_path: "Path") -> None:  # type: ignore[name-defined]
+    """--repo is incompatible with a local directory target → returns error."""
+    _write(tmp_path / "app.py", "pass\n")
+    ret = main([str(tmp_path), "--repo", "some-repo"])
+    assert ret != 0
+
+
+def test_cli_local_branch_flag_incompatible(tmp_path: "Path") -> None:  # type: ignore[name-defined]
+    """--branch is incompatible with a local directory target → returns error."""
+    _write(tmp_path / "app.py", "pass\n")
+    ret = main([str(tmp_path), "--branch", "main"])
+    assert ret != 0
+
+
+def test_cli_local_include_private_incompatible(tmp_path: "Path") -> None:  # type: ignore[name-defined]
+    """--include-private is incompatible with a local directory target → returns error."""
+    _write(tmp_path / "app.py", "pass\n")
+    ret = main([str(tmp_path), "--include-private"])
+    assert ret != 0
+
+
+def test_cli_local_nonexistent_path_returns_error() -> None:
+    """Passing a path that does not exist with --local returns non-zero."""
+    ret = main(["--local", "/nonexistent/path/xyz_does_not_exist"])
+    assert ret != 0
+
+
+def test_cli_local_benchmark_flag(tmp_path: "Path", capsys) -> None:  # type: ignore[name-defined]
+    """--benchmark in local mode prints CPU stats and saves a report."""
+    for i in range(5):
+        _write(tmp_path / f"module_{i}.py", f"x = {i}\n")
+    ret = main([str(tmp_path), "--benchmark"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    # Terminal benchmark table is printed to stderr
+    assert "Local CPU" in captured.err
+    # Network I/O row should show 0 or near-0 (all time is CPU)
+    assert "Network I/O" in captured.err

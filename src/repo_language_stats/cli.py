@@ -40,6 +40,7 @@ from repo_language_stats.discovery import (
 )
 from repo_language_stats.github_api import GitHubAPIClient
 from repo_language_stats.language import classify, is_notebook
+from repo_language_stats.local_scanner import local_scan
 from repo_language_stats.notebook import parse_notebook
 from repo_language_stats.reporting import display_report, render_report
 
@@ -284,6 +285,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help="Custom file path for benchmark markdown report (overrides docs/benchmarks/ defaults).",
+    )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        default=False,
+        help=(
+            "Treat TARGET as a local directory path rather than a GitHub username or repository. "
+            "Useful when the directory name could be confused with a GitHub username."
+        ),
     )
     parser.add_argument(
         "--synthetic-benchmark",
@@ -599,6 +609,22 @@ def parse_target_ref(target: str) -> tuple[str, str | None]:
     return (normalize_target(cleaned), None)
 
 
+def is_local_target(target: str, force_local: bool = False) -> bool:
+    """Return True when *target* should be treated as a local filesystem path.
+
+    A target is considered local when:
+    - ``force_local`` is True (``--local`` flag), or
+    - The path exists on disk as a directory.
+
+    GitHub usernames cannot contain path separators, start with a dot, or
+    contain OS drive letters, so path existence is a reliable discriminator.
+    """
+    if force_local:
+        return True
+    p = Path(target)
+    return p.exists() and p.is_dir()
+
+
 def normalize_target(target: str) -> str:
     """Normalize a GitHub username, repository, or URL into a standard target string.
 
@@ -657,7 +683,101 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.target:
         parser.error("the following arguments are required: TARGET")
 
-    # Determine whether target is a single repo (owner/repo, URL, or --repo flag) or a user
+    # -------------------------------------------------------------------------
+    # Local filesystem mode — dispatch before any GitHub/network logic
+    # -------------------------------------------------------------------------
+    if is_local_target(args.target, force_local=args.local):
+        local_path = Path(args.target).resolve()
+
+        # Flags that are GitHub-specific and meaningless for local paths
+        github_only_flags: list[str] = []
+        if args.repo:
+            github_only_flags.append("--repo")
+        if args.branch:
+            github_only_flags.append("--branch")
+        if getattr(args, "include_private", False):
+            github_only_flags.append("--include-private")
+        if github_only_flags:
+            flag_str = ", ".join(github_only_flags)
+            sys.stderr.write(
+                f"Error: {flag_str} cannot be used with a local directory target.\n"
+            )
+            return 1
+
+        filter_cfg = TreeFilterConfig(
+            include_generated=args.include_generated,
+            include_vendored=args.include_vendored,
+            include_docs=args.include_docs,
+            include_all=args.include_all,
+            exclude_patterns=args.exclude_patterns or [],
+        )
+
+        benchmark: BenchmarkCollector | None = BenchmarkCollector() if args.benchmark else None
+
+        try:
+            if benchmark:
+                with benchmark.measure("wall_clock"):
+                    stats = local_scan(
+                        path=local_path,
+                        filter_config=filter_cfg,
+                        ipynb_language=args.ipynb_language,
+                        benchmark=benchmark,
+                    )
+            else:
+                stats = local_scan(
+                    path=local_path,
+                    filter_config=filter_cfg,
+                    ipynb_language=args.ipynb_language,
+                )
+        except (FileNotFoundError, NotADirectoryError) as exc:
+            sys.stderr.write(f"Error: {exc}\n")
+            return 1
+
+        # Override username for display — show the absolute path
+        stats.username = str(local_path)
+
+        if args.output:
+            output_str = render_report(
+                stats=stats,
+                fmt=args.format,
+                per_repo=args.per_repo,
+                show_files=args.show_files,
+            )
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(output_str, encoding="utf-8")
+        else:
+            display_report(
+                stats=stats,
+                fmt=args.format,
+                per_repo=args.per_repo,
+                show_files=args.show_files,
+            )
+
+        if benchmark:
+            console = Console(stderr=True)
+            target_label = str(local_path)
+            custom_out = getattr(args, "benchmark_output", None)
+            target_bm_path, should_append = resolve_benchmark_path(
+                target_str=target_label,
+                custom_output=custom_out,
+            )
+            report_md = generate_markdown_report(
+                benchmark=benchmark,
+                target=target_label,
+                branch=None,
+                is_single_repo=True,
+            )
+            save_benchmark_report(report_md, target_bm_path, append=should_append)
+            print_terminal_benchmark(benchmark, target=target_label, console=console)
+            console.print(
+                f"[bold green]✓ Benchmark report saved to:[/bold green] [cyan]{target_bm_path}[/cyan]\n"
+            )
+
+        return 0
+
+    # -------------------------------------------------------------------------
+    # GitHub mode — determine whether target is a single repo or a user
+    # -------------------------------------------------------------------------
     target_str, detected_branch = parse_target_ref(args.target)
     target_branch = args.branch if args.branch is not None else detected_branch
 
