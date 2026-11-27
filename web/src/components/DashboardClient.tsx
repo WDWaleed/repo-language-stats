@@ -17,6 +17,7 @@ export function DashboardClient({ stats, initialCard }: DashboardClientProps) {
     theme: "auto",
     metric: "bytes",
     langsCount: initialCard === "compact" ? 4 : initialCard === "donut" ? 6 : 8,
+    autoThreshold: initialCard === "bar",
     showFiles: false,
     hideTitle: false,
   });

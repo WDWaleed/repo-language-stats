@@ -8,7 +8,8 @@ export interface CardOptions {
   cardType: CardType;
   theme: CardTheme;
   metric: MetricType;
-  langsCount: number;
+  langsCount: number | undefined;
+  autoThreshold: boolean;
   showFiles: boolean;
   hideTitle: boolean;
 }
@@ -39,7 +40,10 @@ export function CardPreview({ stats, options, onChange }: CardPreviewProps) {
         cardType: options.cardType,
         theme: options.theme,
         metric: options.metric,
-        langsCount: options.langsCount,
+        langsCount:
+          options.cardType === "bar" && options.autoThreshold
+            ? undefined
+            : options.langsCount,
         showFiles: options.showFiles,
         hideTitle: options.hideTitle,
       }),
@@ -143,25 +147,65 @@ export function CardPreview({ stats, options, onChange }: CardPreviewProps) {
           </div>
         </div>
 
-        {/* Languages count slider */}
+        {/* Languages count / auto-threshold control */}
         <div>
           <div className="flex items-center justify-between text-xs font-medium text-slate-600 dark:text-slate-400">
             <label htmlFor="langs-count-slider">Languages</label>
-            <span className="font-mono text-slate-900 dark:text-white">
-              {options.langsCount}
-            </span>
+            {options.cardType === "bar" ? (
+              <span className="font-mono text-slate-900 dark:text-white">
+                {options.autoThreshold ? "Auto (≥ 1%)" : options.langsCount ?? 8}
+              </span>
+            ) : (
+              <span className="font-mono text-slate-900 dark:text-white">
+                {options.langsCount ?? 8}
+              </span>
+            )}
           </div>
-          <input
-            id="langs-count-slider"
-            type="range"
-            min={2}
-            max={Math.max(2, Math.min(16, stats.languages.length || 12))}
-            value={options.langsCount}
-            onChange={(e) =>
-              onChange({ ...options, langsCount: Number(e.target.value) })
-            }
-            className="mt-2.5 w-full accent-indigo-600"
-          />
+
+          {/* Auto / Custom toggle — bar card only */}
+          {options.cardType === "bar" && (
+            <div className="mt-1.5 inline-flex w-full rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-800 dark:bg-slate-950">
+              <button
+                type="button"
+                onClick={() => onChange({ ...options, autoThreshold: true })}
+                className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
+                  options.autoThreshold
+                    ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                Auto ≥ 1%
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  onChange({ ...options, autoThreshold: false, langsCount: options.langsCount ?? 8 })
+                }
+                className={`flex-1 rounded-md py-1.5 text-xs font-medium transition ${
+                  !options.autoThreshold
+                    ? "bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-white"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                }`}
+              >
+                Custom
+              </button>
+            </div>
+          )}
+
+          {/* Slider — hidden for bar in auto mode */}
+          {!(options.cardType === "bar" && options.autoThreshold) && (
+            <input
+              id="langs-count-slider"
+              type="range"
+              min={2}
+              max={Math.max(2, Math.min(16, stats.languages.length || 12))}
+              value={options.langsCount ?? 8}
+              onChange={(e) =>
+                onChange({ ...options, langsCount: Number(e.target.value) })
+              }
+              className="mt-2.5 w-full accent-indigo-600"
+            />
+          )}
         </div>
 
         {/* Extra toggles */}

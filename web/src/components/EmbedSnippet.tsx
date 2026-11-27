@@ -26,7 +26,11 @@ export function EmbedSnippet({ username, options }: EmbedSnippetProps) {
     const params = new URLSearchParams();
     params.set("theme", themeOverride ?? options.theme);
     if (options.metric !== "bytes") params.set("metric", options.metric);
-    params.set("langs_count", String(options.langsCount));
+    // Omit langs_count when bar card is in Auto (>= 1%) mode
+    const isAutoMode = options.cardType === "bar" && options.autoThreshold;
+    if (!isAutoMode) {
+      params.set("langs_count", String(options.langsCount));
+    }
     if (options.cardType === "breakdown" && options.showFiles) {
       params.set("show_files", "true");
     }
