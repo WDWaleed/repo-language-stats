@@ -1295,3 +1295,26 @@ def test_cli_local_no_gitignore_flag(tmp_path: "Path", capsys) -> None:  # type:
     py_info = next(item for item in data["languages"] if item["language"] == "Python")
     assert py_info["files"] == 2
 
+
+
+def test_cli_local_svg_format_stdout(tmp_path: Path, capsys) -> None:
+    test_file = tmp_path / "app.py"
+    test_file.write_text("print('hello world')\n", encoding="utf-8")
+    ret = main([str(tmp_path), "--format", "svg", "--card-type", "bar", "--card-theme", "dark"])
+    assert ret == 0
+    captured = capsys.readouterr()
+    assert "<svg" in captured.out
+    assert "</svg>" in captured.out
+    assert "#0d1117" in captured.out
+
+
+def test_cli_local_svg_format_file_output(tmp_path: Path) -> None:
+    test_file = tmp_path / "index.ts"
+    test_file.write_text("const x = 1;\n", encoding="utf-8")
+    out_svg = tmp_path / "card.svg"
+    ret = main([str(tmp_path), "--format", "svg", "--card-type", "donut", "-o", str(out_svg)])
+    assert ret == 0
+    assert out_svg.exists()
+    content = out_svg.read_text(encoding="utf-8")
+    assert "<svg" in content
+    assert "TypeScript" in content

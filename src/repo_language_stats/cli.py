@@ -54,6 +54,8 @@ OPTS_WITH_ARG = {
     "--branch",
     "--exclude-pattern",
     "--format",
+    "--card-type",
+    "--card-theme",
     "-o",
     "--output",
     "--ipynb-language",
@@ -257,9 +259,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--format",
-        choices=["table", "json", "csv"],
+        choices=["table", "json", "csv", "svg"],
         default="table",
-        help="Output format: table (default), json, or csv.",
+        help="Output format: table (default), json, csv, or svg.",
+    )
+    parser.add_argument(
+        "--card-type",
+        choices=["bar", "breakdown", "donut", "compact"],
+        default="bar",
+        help="SVG card layout type (when --format svg). Choices: bar (default), breakdown, donut, compact.",
+    )
+    parser.add_argument(
+        "--card-theme",
+        choices=["light", "dark", "auto"],
+        default="light",
+        help="SVG card color theme (when --format svg). Choices: light (default), dark, auto.",
     )
     parser.add_argument(
         "-o",
@@ -752,6 +766,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fmt=args.format,
                 per_repo=args.per_repo,
                 show_files=args.show_files,
+                card_type=args.card_type,
+                theme=args.card_theme,
             )
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(output_str, encoding="utf-8")
@@ -761,6 +777,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fmt=args.format,
                 per_repo=args.per_repo,
                 show_files=args.show_files,
+                card_type=args.card_type,
+                theme=args.card_theme,
             )
 
         if benchmark:
@@ -910,6 +928,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fmt=args.format,
                 per_repo=args.per_repo,
                 show_files=args.show_files,
+                card_type=args.card_type,
+                theme=args.card_theme,
             )
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(output_str, encoding="utf-8")
@@ -919,6 +939,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fmt=args.format,
                 per_repo=args.per_repo,
                 show_files=args.show_files,
+                card_type=args.card_type,
+                theme=args.card_theme,
             )
 
         if benchmark:

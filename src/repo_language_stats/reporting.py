@@ -247,13 +247,24 @@ def render_report(
     fmt: str = "table",
     per_repo: bool = False,
     show_files: bool = False,
+    card_type: str = "bar",
+    theme: str = "light",
 ) -> str:
-    """Render AggregateStats into the requested format (table, json, csv)."""
+    """Render AggregateStats into the requested format (table, json, csv, svg)."""
     fmt_clean = fmt.strip().lower()
     if fmt_clean == "json":
         return format_json(stats, per_repo=per_repo, show_files=show_files)
     elif fmt_clean == "csv":
         return format_csv(stats, per_repo=per_repo, show_files=show_files)
+    elif fmt_clean == "svg":
+        from repo_language_stats.svg.renderer import render_svg
+
+        return render_svg(
+            stats=stats,
+            card_type=card_type,
+            theme=theme,
+            show_files=show_files,
+        )
     else:
         return format_table(stats, per_repo=per_repo, show_files=show_files)
 
@@ -264,6 +275,8 @@ def display_report(
     per_repo: bool = False,
     show_files: bool = False,
     console: Console | None = None,
+    card_type: str = "bar",
+    theme: str = "light",
 ) -> None:
     """Display the report to the user in the specified format."""
     fmt_clean = fmt.strip().lower()
@@ -272,6 +285,17 @@ def display_report(
         sys.stdout.flush()
     elif fmt_clean == "csv":
         sys.stdout.write(format_csv(stats, per_repo=per_repo, show_files=show_files))
+        sys.stdout.flush()
+    elif fmt_clean == "svg":
+        from repo_language_stats.svg.renderer import render_svg
+
+        svg_content = render_svg(
+            stats=stats,
+            card_type=card_type,
+            theme=theme,
+            show_files=show_files,
+        )
+        sys.stdout.write(svg_content + "\n")
         sys.stdout.flush()
     else:
         print_table(stats, per_repo=per_repo, show_files=show_files, console=console)
