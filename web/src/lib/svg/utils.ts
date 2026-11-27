@@ -170,7 +170,8 @@ export function computeDonutSlices(
 export function extractStatsData(
   stats: Partial<CachedUserStats> | null | undefined,
   metric = "bytes",
-  langsCount?: number
+  langsCount?: number,
+  minPercent?: number
 ): {
   username: string;
   languages: ProcessedLanguage[];
@@ -209,7 +210,24 @@ export function extractStatsData(
 
   const sliced = langsCount && langsCount > 0 ? sorted.slice(0, langsCount) : sorted;
 
-  const languages: ProcessedLanguage[] = sliced.map((item) => {
+  // Apply minPercent threshold (before langsCount cap, used by bar card)
+  let candidates = sliced;
+  if (minPercent !== undefined && minPercent > 0) {
+    const denominator = metric === "lines" ? totalLines : totalBytes;
+    if (denominator > 0) {
+      const filtered = sorted.filter((item) => {
+        const val = metric === "lines" ? Number(item.lines ?? 0) : Number(item.bytes ?? 0);
+        return (val / denominator) * 100.0 >= minPercent;
+      });
+      candidates = filtered.length > 0 ? filtered : sorted.slice(0, 1);
+    }
+    // Apply explicit langsCount cap after threshold
+    if (langsCount && langsCount > 0) {
+      candidates = candidates.slice(0, langsCount);
+    }
+  }
+
+  const languages: ProcessedLanguage[] = candidates.map((item) => {
     const b = Number(item.bytes ?? 0);
     const l = Number(item.lines ?? 0);
     const f = Number(item.files ?? 0);

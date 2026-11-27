@@ -36,7 +36,8 @@ export function renderSvg(
       return generateBarCard(stats, {
         theme,
         metric: metric === "both" ? "bytes" : metric,
-        langsCount: options.langsCount ?? 8,
+        langsCount: options.langsCount,
+        minPercent: options.langsCount !== undefined ? undefined : 1.0,
         hideTitle: options.hideTitle ?? false,
         title: options.title,
         emptyMessage: options.emptyMessage,

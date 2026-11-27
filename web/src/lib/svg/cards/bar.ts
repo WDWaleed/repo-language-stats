@@ -6,6 +6,7 @@ export interface BarCardOptions {
   theme?: string;
   metric?: string;
   langsCount?: number;
+  minPercent?: number;
   hideTitle?: boolean;
   title?: string;
   emptyMessage?: string;
@@ -18,7 +19,8 @@ export function generateBarCard(
   const {
     theme = "light",
     metric = "bytes",
-    langsCount = 8,
+    langsCount,
+    minPercent,
     hideTitle = false,
     title,
     emptyMessage = "No language statistics found",
@@ -28,7 +30,8 @@ export function generateBarCard(
   const { username, languages, totalBytes, totalLines } = extractStatsData(
     stats,
     metric,
-    langsCount
+    langsCount,
+    minPercent
   );
 
   const primaryMetricTotal = metric === "lines" ? totalLines : totalBytes;

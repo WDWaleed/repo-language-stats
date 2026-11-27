@@ -17,6 +17,35 @@ const SAMPLE_STATS: CachedUserStats = {
   ],
 };
 
+/** Stats fixture with one tiny language well below 1% */
+const STATS_WITH_TINY: CachedUserStats = {
+  username: "tester",
+  repos_scanned: 1,
+  repos_skipped: 0,
+  total_bytes: 100000,
+  total_lines: 10000,
+  languages: [
+    { language: "Python", bytes: 95000, lines: 9500, files: 10 },
+    { language: "TypeScript", bytes: 4500, lines: 400, files: 5 },
+    { language: "Tiny", bytes: 500, lines: 100, files: 1 }, // 0.5% — below threshold
+  ],
+};
+
+/** Stats fixture with 10 languages each at ~10% */
+const STATS_10_LANGS: CachedUserStats = {
+  username: "tester",
+  repos_scanned: 1,
+  repos_skipped: 0,
+  total_bytes: 100000,
+  total_lines: 10000,
+  languages: Array.from({ length: 10 }, (_, i) => ({
+    language: `Lang${i}`,
+    bytes: 10000,
+    lines: 1000,
+    files: 1,
+  })),
+};
+
 describe("SVG utils", () => {
   it("escapes XML special characters", () => {
     expect(escapeXml('<script>"a"&\'b\'</script>')).toBe(
@@ -89,5 +118,50 @@ describe("renderSvg", () => {
 
   it("throws on unsupported cardType", () => {
     expect(() => renderSvg(SAMPLE_STATS, { cardType: "invalid" })).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M2.2 — Bar card >= 1% threshold (TypeScript engine)
+// ---------------------------------------------------------------------------
+
+describe("renderSvg bar card >= 1% threshold (M2.2)", () => {
+  it("shows all languages >= 1% when langsCount is omitted", () => {
+    // SAMPLE_STATS: Python 50%, TS 30%, JS 15%, CSS 5% — all >= 1%
+    const svg = renderSvg(SAMPLE_STATS, { cardType: "bar" });
+    expect(svg).toContain("Python");
+    expect(svg).toContain("TypeScript");
+    expect(svg).toContain("JavaScript");
+    expect(svg).toContain("CSS");
+  });
+
+  it("filters out languages below 1% by default for bar card", () => {
+    const svg = renderSvg(STATS_WITH_TINY, { cardType: "bar" });
+    expect(svg).toContain("Python");
+    expect(svg).toContain("TypeScript");
+    expect(svg).not.toContain("Tiny"); // 0.5% — below threshold
+  });
+
+  it("shows more than 8 languages when all are >= 1%", () => {
+    const svg = renderSvg(STATS_10_LANGS, { cardType: "bar" });
+    for (let i = 0; i < 10; i++) {
+      expect(svg).toContain(`Lang${i}`);
+    }
+  });
+
+  it("explicit langsCount overrides threshold and caps bar card", () => {
+    // langs_count=3: top-3 shown even if 3rd is < 1%
+    const svg = renderSvg(STATS_WITH_TINY, { cardType: "bar", langsCount: 3 });
+    expect(svg).toContain("Python");
+    expect(svg).toContain("TypeScript");
+    expect(svg).toContain("Tiny"); // within top-3, threshold bypassed
+  });
+
+  it("non-bar cards (donut, compact, breakdown) are unaffected by threshold", () => {
+    // STATS_WITH_TINY: Tiny is 0.5% but should appear in donut/compact/breakdown
+    for (const cardType of ["donut", "compact", "breakdown"] as const) {
+      const svg = renderSvg(STATS_WITH_TINY, { cardType });
+      expect(svg).toContain("Tiny");
+    }
   });
 });
