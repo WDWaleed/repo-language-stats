@@ -19,6 +19,7 @@ htmlcov/
 implementation.md
 web-implementation.md
 docs/changes_to_commit.md
+docs/issue-fixes.md
 
 # Benchmarks
 docs/benchmarks/others.md
