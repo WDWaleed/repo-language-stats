@@ -14,7 +14,8 @@ def generate_bar_card(
     stats: Any,
     theme: str = "light",
     metric: str = "bytes",
-    langs_count: int = 8,
+    langs_count: int | None = None,
+    min_percent: float | None = 1.0,
     hide_title: bool = False,
     title: str | None = None,
     empty_message: str = "No language statistics found",
@@ -22,12 +23,15 @@ def generate_bar_card(
     """Generate a 495 x dynamic bar card SVG with top progress bar and 2-column legend.
 
     Fixed Decision D3: bar: 495 x dynamic.
+    When langs_count is None (default), shows all languages with >= min_percent share.
+    When langs_count > 0, that explicit cap overrides min_percent filtering.
     """
     theme_obj = get_theme(theme)
     username, languages, tot_bytes, tot_lines, _ = extract_stats_data(
         stats,
         metric=metric,
         langs_count=langs_count,
+        min_percent=None if (langs_count is not None and langs_count > 0) else min_percent,
     )
 
     primary_metric_tot = tot_lines if metric == "lines" else tot_bytes

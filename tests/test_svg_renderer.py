@@ -539,3 +539,106 @@ class TestCardGenerators:
         """An unknown metric name should silently fall back to bytes."""
         svg = render_svg(sample_aggregate_stats, card_type="bar", metric="invalid_metric")
         ET.fromstring(svg)  # Must still produce valid SVG
+
+
+# ---------------------------------------------------------------------------
+# M2.1 — Bar card >= 1% threshold tests
+# ---------------------------------------------------------------------------
+
+
+class TestBarCardMinPercent:
+    """Verify bar card shows all languages >= 1% by default (Decision D2)."""
+
+    def _make_stats(self, lang_bytes: dict[str, int]) -> dict:
+        total = sum(lang_bytes.values())
+        return {
+            "username": "tester",
+            "total_bytes": total,
+            "total_lines": total,
+            "languages": [
+                {"language": lang, "bytes": b, "lines": b, "files": 1}
+                for lang, b in lang_bytes.items()
+            ],
+        }
+
+    def test_all_above_1pct_all_shown(self):
+        """10 languages each at exactly 10% — all 10 must appear in bar card."""
+        lang_bytes = {f"Lang{i}": 1000 for i in range(10)}
+        stats = self._make_stats(lang_bytes)
+        svg = render_svg(stats, card_type="bar")
+        for i in range(10):
+            assert f"Lang{i}" in svg
+        # Verify XML validity
+        ET.fromstring(svg)
+
+    def test_small_languages_filtered_out(self):
+        """Languages with < 1% share must be omitted from bar card by default."""
+        lang_bytes = {
+            "Python": 95000,  # 95%
+            "TypeScript": 4500,  # 4.5%
+            "Tiny": 500,  # 0.5% — should be excluded
+        }
+        stats = self._make_stats(lang_bytes)
+        svg = render_svg(stats, card_type="bar")
+        assert "Python" in svg
+        assert "TypeScript" in svg
+        assert "Tiny" not in svg
+        ET.fromstring(svg)
+
+    def test_all_below_1pct_fallback_top1(self):
+        """When every language is < 1% (impossible in practice but test fallback):
+        top-1 must still be shown so card is never empty."""
+        # Simulate: 1 lang with 100% but we override extract directly via dict
+        # where total_bytes is artificially huge making everything < 1%.
+        lang_bytes = {"OnlyLang": 50}
+        stats = {
+            "username": "tester",
+            "total_bytes": 100000,  # makes OnlyLang = 0.05% < 1%
+            "total_lines": 100000,
+            "languages": [
+                {"language": "OnlyLang", "bytes": 50, "lines": 50, "files": 1}
+            ],
+        }
+        svg = render_svg(stats, card_type="bar")
+        assert "OnlyLang" in svg
+        ET.fromstring(svg)
+
+    def test_explicit_langs_count_overrides_min_percent(self):
+        """When langs_count=3 is explicitly supplied, top-3 are shown regardless of % share."""
+        lang_bytes = {
+            "A": 95000,  # 95%
+            "B": 4000,   # 4%
+            "C": 500,    # 0.5% — below 1% but within top-3
+            "D": 400,    # 0.4% — below 1%, outside top-3
+        }
+        stats = self._make_stats(lang_bytes)
+        svg = render_svg(stats, card_type="bar", langs_count=3)
+        assert "A" in svg
+        assert "B" in svg
+        assert "C" in svg  # explicitly requested via langs_count
+        assert "D" not in svg  # outside top-3
+        ET.fromstring(svg)
+
+    def test_non_bar_cards_unaffected(self):
+        """donut, compact, breakdown still use their numeric defaults, not 1% filter."""
+        lang_bytes = {
+            "Major": 95000,
+            "Minor": 500,  # 0.5%
+        }
+        stats = self._make_stats(lang_bytes)
+        # For compact (default 4) and donut (default 6): Minor is within count limit
+        for card_type in ("donut", "compact", "breakdown"):
+            svg = render_svg(stats, card_type=card_type)
+            # Both languages should appear since count limit > 2
+            assert "Major" in svg
+            assert "Minor" in svg
+            ET.fromstring(svg)
+
+    def test_bar_card_more_than_8_shown_when_all_above_1pct(self):
+        """With 10 languages all >= 10%, bar shows all 10 (previous cap was 8)."""
+        lang_bytes = {f"L{i}": 10000 for i in range(10)}
+        stats = self._make_stats(lang_bytes)
+        svg = render_svg(stats, card_type="bar")
+        for i in range(10):
+            assert f"L{i}" in svg
+        ET.fromstring(svg)

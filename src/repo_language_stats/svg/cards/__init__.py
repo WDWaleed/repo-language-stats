@@ -42,6 +42,7 @@ def extract_stats_data(
     stats: Any,
     metric: str = "bytes",
     langs_count: int | None = None,
+    min_percent: float | None = None,
 ) -> tuple[str, list[dict[str, Any]], int, int, int]:
     """Extract and normalize language statistics from AggregateStats or dictionary.
 
@@ -114,6 +115,17 @@ def extract_stats_data(
         raw_languages.sort(key=lambda x: (x["lines"], x["bytes"], x["language"]), reverse=True)
     else:
         raw_languages.sort(key=lambda x: (x["bytes"], x["lines"], x["language"]), reverse=True)
+
+    # Apply min_percent threshold (before langs_count cap)
+    if min_percent is not None:
+        denominator = tot_lines if metric == "lines" else tot_bytes
+        if denominator > 0:
+            filtered = [
+                lang for lang in raw_languages
+                if (lang["lines"] if metric == "lines" else lang["bytes"]) / denominator * 100.0 >= min_percent
+            ]
+            # top-1 fallback: never return empty when input is non-empty
+            raw_languages = filtered if filtered else (raw_languages[:1] if raw_languages else [])
 
     if langs_count is not None and langs_count > 0:
         raw_languages = raw_languages[:langs_count]

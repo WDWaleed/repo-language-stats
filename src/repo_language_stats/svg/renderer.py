@@ -18,7 +18,7 @@ CARD_GENERATORS = {
 }
 
 DEFAULT_LANGS_COUNT = {
-    "bar": 8,
+    "bar": None,
     "breakdown": 10,
     "donut": 6,
     "compact": 4,
@@ -70,7 +70,7 @@ def render_svg(
     effective_langs_count = (
         langs_count
         if (langs_count is not None and langs_count > 0)
-        else DEFAULT_LANGS_COUNT.get(card_type_norm, 8)
+        else DEFAULT_LANGS_COUNT.get(card_type_norm)
     )
 
     generator = CARD_GENERATORS[card_type_norm]
@@ -93,7 +93,17 @@ def render_svg(
             hide_title=hide_title,
             title=title,
         )
-    else:  # bar, donut
+    elif card_type_norm == "bar":
+        svg_content = generator(
+            stats=stats,
+            theme=theme_norm,
+            metric=metric_norm,
+            langs_count=effective_langs_count,
+            min_percent=1.0 if effective_langs_count is None else None,
+            hide_title=hide_title,
+            title=title,
+        )
+    else:  # donut
         svg_content = generator(
             stats=stats,
             theme=theme_norm,
