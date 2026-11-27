@@ -226,7 +226,7 @@ repo-language-stats WDWaleed --per-repo
 
 #### Include Default-Excluded Data & Config Files (`--all`)
 
-By default, JSON, JSON with Comments, CSV, YAML, TOML, SVG, and Dotenv files are excluded to avoid skewing code stats. Use `--all` to include them:
+By default, JSON, JSON with Comments, CSV, YAML, TOML, SVG, Dotenv, and TeX files are excluded to avoid skewing code stats. Use `--all` to include them:
 
 ```bash
 repo-language-stats WDWaleed --all
@@ -381,7 +381,7 @@ Tree Discovery & Exclusions:
   ├── Vendored paths (vendor.yml / node_modules)
   ├── Generated patterns (minified, lockfiles)
   ├── Documentation check (.md, .rst, .txt)
-  ├── Default data exclusions (.json, .csv, .yaml, .toml, .svg, .env)
+  ├── Default data exclusions (.json, .csv, .yaml, .toml, .svg, .env, .tex)
   └── Custom --exclude-pattern globs
          │
          ▼
@@ -423,7 +423,7 @@ In addition to the CLI, this repository includes a Next.js 15 web dashboard and 
 
 | Card Type | Dimensions | Default `langs_count` | Sample |
 |---|---|---|---|
-| `bar` | `495 × dynamic` | `8` | ![Bar Card](docs/sample_bar_light.svg) |
+| `bar` | `495 × dynamic` | all languages with ≥ 1% share | ![Bar Card](docs/sample_bar_light.svg) |
 | `breakdown` | `520 × dynamic` | `10` | ![Breakdown Card](docs/sample_breakdown.svg) |
 | `donut` | `495 × 220` | `6` | ![Donut Card](docs/sample_donut.svg) |
 | `compact` | `495 × 32` | `4` | ![Compact Card](docs/sample_compact.svg) |
@@ -431,14 +431,14 @@ In addition to the CLI, this repository includes a Next.js 15 web dashboard and 
 ### SVG Endpoint & Query Parameters
 
 ```
-GET /api/svg/<username>/<card_type>?theme=auto&metric=bytes&langs_count=8
+GET /api/svg/<username>/<card_type>?theme=auto&metric=bytes
 ```
 
 | Parameter | Default | Valid Values | Notes |
 |---|---|---|---|
 | `theme` | `light` | `light`, `dark`, `auto` | `auto` embeds `@media (prefers-color-scheme: dark)` CSS variables |
 | `metric` | `bytes` | `bytes`, `lines`, `both` | `both` is supported on `breakdown` cards |
-| `langs_count` | varies | `1`–`50` | Defaults: `bar` `8`, `breakdown` `10`, `donut` `6`, `compact` `4` |
+| `langs_count` | varies | `1`–`50` | `bar`: omit to show all languages with ≥ 1% share (recommended); explicit value caps at that number. `breakdown` `10`, `donut` `6`, `compact` `4` |
 | `show_files` | `false` | `true`, `false` | Shows the **Files** column on `breakdown` cards |
 | `hide_title` | `false` | `true`, `false` | Hides the card title header (not applicable to `compact`) |
 | `title` | auto | any string | Custom card title (XML-escaped) |
