@@ -166,29 +166,31 @@ def build_payload(
 class UpstashClient:
     """Thin synchronous wrapper around Upstash Redis REST API."""
 
-    def __init__(self, url: str, token: str, timeout: float = 10.0) -> None:
+    def __init__(self, url: str, token: str, timeout: float = 10.0, retries: int = 3) -> None:
         self._url = url.rstrip("/")
         self._headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
         self._timeout = timeout
+        self._retries = retries
 
     def set(
         self,
         key: str,
         value: str,
         ex: int | None = None,
-        retries: int = 3,
+        retries: int | None = None,
         backoff: float = 1.5,
     ) -> dict[str, Any]:
         """Execute SET key value [EX seconds] with exponential-backoff retry."""
+        effective_retries = self._retries if retries is None else retries
         cmd: list[str | int] = ["SET", key, value]
         if ex is not None:
             cmd += ["EX", ex]
 
         last_exc: Exception | None = None
-        for attempt in range(1, retries + 1):
+        for attempt in range(1, effective_retries + 1):
             try:
                 resp = httpx.post(
                     self._url,
@@ -203,15 +205,15 @@ class UpstashClient:
                 return body
             except (httpx.HTTPStatusError, httpx.RequestError, RuntimeError) as exc:
                 last_exc = exc
-                if attempt < retries:
+                if attempt < effective_retries:
                     wait = backoff ** attempt
                     logger.warning(
                         "Attempt %d/%d failed (%s). Retrying in %.1fs…",
-                        attempt, retries, exc, wait,
+                        attempt, effective_retries, exc, wait,
                     )
                     time.sleep(wait)
 
-        raise RuntimeError(f"All {retries} attempts failed: {last_exc}") from last_exc
+        raise RuntimeError(f"All {effective_retries} attempts failed: {last_exc}") from last_exc
 
     def get(self, key: str) -> dict[str, Any]:
         """Execute GET key."""
