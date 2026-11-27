@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { CardPreview, type CardOptions } from "@/components/CardPreview";
+import { EmbedSnippet } from "@/components/EmbedSnippet";
+import { StatsTable } from "@/components/StatsTable";
 import type { CachedUserStats, CardType } from "@/lib/svg/types";
 
 interface DashboardClientProps {
@@ -22,6 +24,12 @@ export function DashboardClient({ stats, initialCard }: DashboardClientProps) {
   return (
     <div className="space-y-6">
       <CardPreview stats={stats} options={options} onChange={setOptions} />
+      <EmbedSnippet username={stats.username} options={options} />
+      <StatsTable
+        languages={stats.languages}
+        totalBytes={stats.total_bytes}
+        totalLines={stats.total_lines}
+      />
     </div>
   );
 }
