@@ -231,3 +231,112 @@ class TestDonutMath:
     def test_compute_donut_slices_empty_or_zero(self):
         assert compute_donut_slices([], cx=100, cy=100, r_inner=20, r_outer=40) == []
         assert compute_donut_slices([{"bytes": 0}], cx=100, cy=100, r_inner=20, r_outer=40) == []
+
+
+import xml.etree.ElementTree as ET
+import pytest
+from repo_language_stats.counting import AggregateStats, LanguageStats
+from repo_language_stats.svg.renderer import render_svg
+
+
+@pytest.fixture
+def sample_aggregate_stats():
+    stats = AggregateStats(
+        username="octocat",
+        repos_scanned=5,
+        total_bytes=100000,
+        total_lines=5000,
+    )
+    stats.aggregate = {
+        "Python": LanguageStats(language="Python", total_bytes=60000, total_lines=3000, file_count=10),
+        "TypeScript": LanguageStats(language="TypeScript", total_bytes=25000, total_lines=1200, file_count=5),
+        "HTML": LanguageStats(language="HTML", total_bytes=10000, total_lines=600, file_count=2),
+        "CSS": LanguageStats(language="CSS", total_bytes=5000, total_lines=200, file_count=1),
+    }
+    return stats
+
+
+@pytest.fixture
+def sample_dict_stats():
+    return {
+        "username": "mona",
+        "total_bytes": 50000,
+        "total_lines": 2500,
+        "languages": [
+            {"language": "Rust", "bytes": 35000, "lines": 1800, "files": 8},
+            {"language": "Go", "bytes": 15000, "lines": 700, "files": 4},
+        ],
+    }
+
+
+class TestCardGenerators:
+    """Verify that all 4 card generators produce non-empty valid XML SVGs."""
+
+    @pytest.mark.parametrize("card_type", ["bar", "breakdown", "donut", "compact"])
+    def test_each_card_produces_valid_xml(self, sample_aggregate_stats, card_type):
+        svg_output = render_svg(sample_aggregate_stats, card_type=card_type)
+        assert isinstance(svg_output, str)
+        assert len(svg_output) > 0
+        root = ET.fromstring(svg_output)
+        assert root.tag.endswith("svg")
+
+    @pytest.mark.parametrize("card_type", ["bar", "breakdown", "donut", "compact"])
+    def test_dict_stats_produces_valid_xml(self, sample_dict_stats, card_type):
+        svg_output = render_svg(sample_dict_stats, card_type=card_type)
+        assert isinstance(svg_output, str)
+        assert len(svg_output) > 0
+        root = ET.fromstring(svg_output)
+        assert root.tag.endswith("svg")
+
+    def test_compact_card_dimensions(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="compact")
+        root = ET.fromstring(svg)
+        assert root.attrib.get("width") == "495"
+        assert root.attrib.get("height") == "32"
+
+    def test_donut_card_dimensions(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="donut")
+        root = ET.fromstring(svg)
+        assert root.attrib.get("width") == "495"
+        assert root.attrib.get("height") == "220"
+
+    def test_bar_card_dimensions_and_title(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="bar", title="Custom Title")
+        assert "Custom Title" in svg
+        root = ET.fromstring(svg)
+        assert root.attrib.get("width") == "495"
+
+    def test_breakdown_card_with_both_metrics_and_files(self, sample_aggregate_stats):
+        svg = render_svg(
+            sample_aggregate_stats,
+            card_type="breakdown",
+            metric="both",
+            show_files=True,
+        )
+        assert "Files" in svg
+        assert "Bytes / %" in svg
+        assert "Lines / %" in svg
+        root = ET.fromstring(svg)
+        assert root.attrib.get("width") == "520"
+
+    @pytest.mark.parametrize("theme", ["light", "dark", "auto"])
+    def test_card_themes(self, sample_aggregate_stats, theme):
+        svg = render_svg(sample_aggregate_stats, card_type="bar", theme=theme)
+        if theme == "auto":
+            assert "@media (prefers-color-scheme: dark)" in svg
+        elif theme == "dark":
+            assert "#0d1117" in svg
+        elif theme == "light":
+            assert "#ffffff" in svg
+
+    def test_empty_stats_produces_valid_svg_without_error(self):
+        empty_stats = AggregateStats(username="empty_user")
+        for card_type in ["bar", "breakdown", "donut", "compact"]:
+            svg = render_svg(empty_stats, card_type=card_type)
+            root = ET.fromstring(svg)
+            assert root.tag.endswith("svg")
+            assert "No language statistics found" in svg
+
+    def test_invalid_card_type_raises_value_error(self, sample_aggregate_stats):
+        with pytest.raises(ValueError, match="Invalid card_type"):
+            render_svg(sample_aggregate_stats, card_type="nonexistent")

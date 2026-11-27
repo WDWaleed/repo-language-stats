@@ -1,0 +1,59 @@
+<svg width="520" height="{{ height }}" viewBox="0 0 520 {{ height }}" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="{{ title }}">
+  <style>
+{{ theme_css }}
+    .card-bg { fill: var(--card-bg); stroke: var(--card-border); }
+    .card-title { fill: var(--card-text); font-weight: 600; font-size: 15px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .card-header { fill: var(--card-secondary); font-size: 11px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; text-transform: uppercase; letter-spacing: 0.5px; }
+    .card-text { fill: var(--card-text); font-size: 12px; font-weight: 500; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .card-secondary { fill: var(--card-secondary); font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .divider { stroke: var(--card-border); stroke-width: 1; }
+  </style>
+  <rect x="0.5" y="0.5" width="519" height="{{ height - 1 }}" rx="6" class="card-bg" stroke="var(--card-border)"/>
+{% if not hide_title %}
+  <text x="25" y="32" class="card-title">{{ title }}</text>
+{% endif %}
+{% if not has_stats %}
+  <text x="260" y="{{ (height / 2) + 4 }}" class="card-secondary" text-anchor="middle" font-size="12">{{ empty_message }}</text>
+{% else %}
+  <!-- Table Header -->
+  <text x="25" y="{{ header_y }}" class="card-header">Language</text>
+  {% if show_bytes %}
+  <text x="{{ bytes_col_x }}" y="{{ header_y }}" class="card-header" text-anchor="end">Bytes / %</text>
+  {% endif %}
+  {% if show_lines %}
+  <text x="{{ lines_col_x }}" y="{{ header_y }}" class="card-header" text-anchor="end">Lines / %</text>
+  {% endif %}
+  {% if show_files %}
+  <text x="{{ files_col_x }}" y="{{ header_y }}" class="card-header" text-anchor="end">Files</text>
+  {% endif %}
+  <line x1="25" y1="{{ div_y }}" x2="495" y2="{{ div_y }}" class="divider"/>
+
+  <!-- Language Rows -->
+  {% for row in rows %}
+  <circle cx="30" cy="{{ row.y - 4 }}" r="4.5" fill="{{ row.color }}"/>
+  <text x="42" y="{{ row.y }}" class="card-text">{{ row.escaped_name }}</text>
+  {% if show_bytes %}
+  <text x="{{ bytes_col_x }}" y="{{ row.y }}" class="card-secondary" text-anchor="end">{{ row.bytes_text }} ({{ row.byte_percent }}%)</text>
+  {% endif %}
+  {% if show_lines %}
+  <text x="{{ lines_col_x }}" y="{{ row.y }}" class="card-secondary" text-anchor="end">{{ row.lines_text }} ({{ row.line_percent }}%)</text>
+  {% endif %}
+  {% if show_files %}
+  <text x="{{ files_col_x }}" y="{{ row.y }}" class="card-secondary" text-anchor="end">{{ row.files_text }}</text>
+  {% endif %}
+  {% endfor %}
+
+  <!-- Table Footer -->
+  <line x1="25" y1="{{ footer_div_y }}" x2="495" y2="{{ footer_div_y }}" class="divider"/>
+  <text x="25" y="{{ footer_y }}" class="card-title" font-size="12">TOTAL</text>
+  {% if show_bytes %}
+  <text x="{{ bytes_col_x }}" y="{{ footer_y }}" class="card-text" text-anchor="end" font-weight="600">{{ total_bytes_text }}</text>
+  {% endif %}
+  {% if show_lines %}
+  <text x="{{ lines_col_x }}" y="{{ footer_y }}" class="card-text" text-anchor="end" font-weight="600">{{ total_lines_text }}</text>
+  {% endif %}
+  {% if show_files %}
+  <text x="{{ files_col_x }}" y="{{ footer_y }}" class="card-text" text-anchor="end" font-weight="600">{{ total_files_text }}</text>
+  {% endif %}
+{% endif %}
+</svg>
