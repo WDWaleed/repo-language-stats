@@ -415,6 +415,66 @@ For an in-depth reference on excluded formats, why they are filtered out by defa
 
 ---
 
+## Web Dashboard & Embeddable SVG Cards
+
+In addition to the CLI, this repository includes a Next.js 15 web dashboard and serverless SVG card API in [`web/`](web/README.md) backed by Upstash Redis and a scheduled GitHub Actions sync worker.
+
+### Card Layouts
+
+| Card Type | Dimensions | Default `langs_count` | Sample |
+|---|---|---|---|
+| `bar` | `495 × dynamic` | `8` | ![Bar Card](docs/sample_bar_light.svg) |
+| `breakdown` | `520 × dynamic` | `10` | ![Breakdown Card](docs/sample_breakdown.svg) |
+| `donut` | `495 × 220` | `6` | ![Donut Card](docs/sample_donut.svg) |
+| `compact` | `495 × 32` | `4` | ![Compact Card](docs/sample_compact.svg) |
+
+### SVG Endpoint & Query Parameters
+
+```
+GET /api/svg/<username>/<card_type>?theme=auto&metric=bytes&langs_count=8
+```
+
+| Parameter | Default | Valid Values | Notes |
+|---|---|---|---|
+| `theme` | `light` | `light`, `dark`, `auto` | `auto` embeds `@media (prefers-color-scheme: dark)` CSS variables |
+| `metric` | `bytes` | `bytes`, `lines`, `both` | `both` is supported on `breakdown` cards |
+| `langs_count` | varies | `1`–`50` | Defaults: `bar` `8`, `breakdown` `10`, `donut` `6`, `compact` `4` |
+| `show_files` | `false` | `true`, `false` | Shows the **Files** column on `breakdown` cards |
+| `hide_title` | `false` | `true`, `false` | Hides the card title header (not applicable to `compact`) |
+| `title` | auto | any string | Custom card title (XML-escaped) |
+
+### Embedding in Your GitHub Profile README
+
+**Markdown (`auto` theme):**
+```markdown
+![Top Languages](https://<your-app>.vercel.app/api/svg/<username>/bar?theme=auto)
+```
+
+**HTML `<picture>` (explicit GitHub Light / Dark switching):**
+```html
+<picture>
+  <source
+    media="(prefers-color-scheme: dark)"
+    srcset="https://<your-app>.vercel.app/api/svg/<username>/bar?theme=dark"
+  />
+  <source
+    media="(prefers-color-scheme: light)"
+    srcset="https://<your-app>.vercel.app/api/svg/<username>/bar?theme=light"
+  />
+  <img
+    alt="Top Languages"
+    src="https://<your-app>.vercel.app/api/svg/<username>/bar?theme=light"
+  />
+</picture>
+```
+
+For architecture, Upstash Redis key schemas, and worker setup, see:
+- [docs/web_architecture.md](docs/web_architecture.md)
+- [docs/worker_setup.md](docs/worker_setup.md)
+- [web/README.md](web/README.md)
+
+---
+
 ## Development & Testing
 
 ### Setting Up Development Environment
