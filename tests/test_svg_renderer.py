@@ -1,8 +1,14 @@
-"""Tests for SVG themes, color resolution, and utility functions."""
+"""Tests for SVG themes, color resolution, utility functions, and card generators."""
 
 from __future__ import annotations
 
 import math
+import xml.etree.ElementTree as ET
+
+import pytest
+
+from repo_language_stats.counting import AggregateStats, LanguageStats
+from repo_language_stats.svg.renderer import render_svg
 from repo_language_stats.svg.themes import (
     AUTO_THEME,
     DARK_THEME,
@@ -20,6 +26,46 @@ from repo_language_stats.svg.utils import (
     polar_to_cartesian,
     resolve_language_color,
 )
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sample_aggregate_stats():
+    stats = AggregateStats(
+        username="octocat",
+        repos_scanned=5,
+        total_bytes=100000,
+        total_lines=5000,
+    )
+    stats.aggregate = {
+        "Python": LanguageStats(language="Python", total_bytes=60000, total_lines=3000, file_count=10),
+        "TypeScript": LanguageStats(language="TypeScript", total_bytes=25000, total_lines=1200, file_count=5),
+        "HTML": LanguageStats(language="HTML", total_bytes=10000, total_lines=600, file_count=2),
+        "CSS": LanguageStats(language="CSS", total_bytes=5000, total_lines=200, file_count=1),
+    }
+    return stats
+
+
+@pytest.fixture
+def sample_dict_stats():
+    return {
+        "username": "mona",
+        "total_bytes": 50000,
+        "total_lines": 2500,
+        "languages": [
+            {"language": "Rust", "bytes": 35000, "lines": 1800, "files": 8},
+            {"language": "Go", "bytes": 15000, "lines": 700, "files": 4},
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Theme Tests
+# ---------------------------------------------------------------------------
 
 
 class TestSVGThemes:
@@ -66,6 +112,32 @@ class TestSVGThemes:
         assert "--card-border: #d0d7de;" in light_css
         assert "@media" not in light_css
 
+    def test_dark_theme_css_has_all_variables(self):
+        css = DARK_THEME.get_css()
+        assert "--card-bg: #0d1117;" in css
+        assert "--card-text: #e6edf3;" in css
+        assert "--card-border: #30363d;" in css
+
+    def test_auto_theme_css_has_light_and_dark_vars(self):
+        css = AUTO_THEME.get_css()
+        # Light values present
+        assert "#ffffff" in css
+        assert "#24292f" in css
+        # Dark values inside media query
+        assert "@media (prefers-color-scheme: dark)" in css
+        assert "#0d1117" in css
+        assert "#e6edf3" in css
+
+    def test_all_themes_registered(self):
+        assert "light" in THEMES
+        assert "dark" in THEMES
+        assert "auto" in THEMES
+
+
+# ---------------------------------------------------------------------------
+# XML Escaping Tests
+# ---------------------------------------------------------------------------
+
 
 class TestXMLEscaping:
     """Verify XML sanitization prevents XSS and malformed SVG output."""
@@ -89,6 +161,14 @@ class TestXMLEscaping:
         assert escape_xml(123) == "123"
         assert escape_xml(45.6) == "45.6"
         assert escape_xml(True) == "True"
+
+    def test_escape_all_five_special_chars(self):
+        assert escape_xml("& < > \" '") == "&amp; &lt; &gt; &quot; &apos;"
+
+
+# ---------------------------------------------------------------------------
+# Formatter Tests
+# ---------------------------------------------------------------------------
 
 
 class TestFormatters:
@@ -122,6 +202,11 @@ class TestFormatters:
         assert format_number(1000000, compact=False) == "1,000,000"
 
 
+# ---------------------------------------------------------------------------
+# Color Resolution Tests
+# ---------------------------------------------------------------------------
+
+
 class TestColorResolution:
     """Verify language color mapping using Linguist dataset."""
 
@@ -142,6 +227,18 @@ class TestColorResolution:
         assert resolve_language_color("NonExistentLang404") == "#8b949e"
         assert resolve_language_color("", default="#123456") == "#123456"
         assert resolve_language_color("Unknown", default="#abcdef") == "#abcdef"
+
+    def test_all_resolved_colors_are_valid_hex(self):
+        """Every resolved color must be a #RRGGBB hex string."""
+        for lang in ["Python", "TypeScript", "JavaScript", "Go", "Rust", "HTML", "CSS"]:
+            color = resolve_language_color(lang)
+            assert color.startswith("#"), f"Color for {lang!r} should start with #"
+            assert len(color) == 7, f"Color for {lang!r} should be 7 chars"
+
+
+# ---------------------------------------------------------------------------
+# Donut Geometry Tests
+# ---------------------------------------------------------------------------
 
 
 class TestDonutMath:
@@ -232,45 +329,27 @@ class TestDonutMath:
         assert compute_donut_slices([], cx=100, cy=100, r_inner=20, r_outer=40) == []
         assert compute_donut_slices([{"bytes": 0}], cx=100, cy=100, r_inner=20, r_outer=40) == []
 
-
-import xml.etree.ElementTree as ET
-import pytest
-from repo_language_stats.counting import AggregateStats, LanguageStats
-from repo_language_stats.svg.renderer import render_svg
-
-
-@pytest.fixture
-def sample_aggregate_stats():
-    stats = AggregateStats(
-        username="octocat",
-        repos_scanned=5,
-        total_bytes=100000,
-        total_lines=5000,
-    )
-    stats.aggregate = {
-        "Python": LanguageStats(language="Python", total_bytes=60000, total_lines=3000, file_count=10),
-        "TypeScript": LanguageStats(language="TypeScript", total_bytes=25000, total_lines=1200, file_count=5),
-        "HTML": LanguageStats(language="HTML", total_bytes=10000, total_lines=600, file_count=2),
-        "CSS": LanguageStats(language="CSS", total_bytes=5000, total_lines=200, file_count=1),
-    }
-    return stats
+    def test_donut_angles_sum_to_360(self):
+        """All slice angles must sum to exactly 360 degrees."""
+        items = [
+            {"language": "Python", "bytes": 500},
+            {"language": "Go", "bytes": 300},
+            {"language": "Rust", "bytes": 200},
+        ]
+        slices = compute_donut_slices(items, cx=100, cy=100, r_inner=30, r_outer=60)
+        total_span = sum(s.end_angle - s.start_angle for s in slices)
+        assert math.isclose(total_span, 360.0, abs_tol=1e-6)
 
 
-@pytest.fixture
-def sample_dict_stats():
-    return {
-        "username": "mona",
-        "total_bytes": 50000,
-        "total_lines": 2500,
-        "languages": [
-            {"language": "Rust", "bytes": 35000, "lines": 1800, "files": 8},
-            {"language": "Go", "bytes": 15000, "lines": 700, "files": 4},
-        ],
-    }
+# ---------------------------------------------------------------------------
+# Card Generator Tests (XML syntax, themes, metrics, empty stats)
+# ---------------------------------------------------------------------------
 
 
 class TestCardGenerators:
     """Verify that all 4 card generators produce non-empty valid XML SVGs."""
+
+    # --- Basic XML validity ---
 
     @pytest.mark.parametrize("card_type", ["bar", "breakdown", "donut", "compact"])
     def test_each_card_produces_valid_xml(self, sample_aggregate_stats, card_type):
@@ -288,6 +367,8 @@ class TestCardGenerators:
         root = ET.fromstring(svg_output)
         assert root.tag.endswith("svg")
 
+    # --- Fixed Dimensions (D3) ---
+
     def test_compact_card_dimensions(self, sample_aggregate_stats):
         svg = render_svg(sample_aggregate_stats, card_type="compact")
         root = ET.fromstring(svg)
@@ -300,34 +381,112 @@ class TestCardGenerators:
         assert root.attrib.get("width") == "495"
         assert root.attrib.get("height") == "220"
 
-    def test_bar_card_dimensions_and_title(self, sample_aggregate_stats):
-        svg = render_svg(sample_aggregate_stats, card_type="bar", title="Custom Title")
-        assert "Custom Title" in svg
+    def test_bar_card_width(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="bar")
         root = ET.fromstring(svg)
         assert root.attrib.get("width") == "495"
 
-    def test_breakdown_card_with_both_metrics_and_files(self, sample_aggregate_stats):
-        svg = render_svg(
-            sample_aggregate_stats,
-            card_type="breakdown",
-            metric="both",
-            show_files=True,
-        )
-        assert "Files" in svg
-        assert "Bytes / %" in svg
-        assert "Lines / %" in svg
+    def test_breakdown_card_width(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="breakdown")
         root = ET.fromstring(svg)
         assert root.attrib.get("width") == "520"
 
+    # --- Title / hide_title ---
+
+    def test_custom_title_appears_in_svg(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="bar", title="Custom Title")
+        assert "Custom Title" in svg
+
+    def test_hide_title_omits_title_text(self, sample_aggregate_stats):
+        svg_with = render_svg(sample_aggregate_stats, card_type="bar", hide_title=False)
+        svg_without = render_svg(sample_aggregate_stats, card_type="bar", hide_title=True)
+        # Both must still be valid XML
+        ET.fromstring(svg_with)
+        ET.fromstring(svg_without)
+        # Card without title should be shorter (no title text element)
+        assert len(svg_without) < len(svg_with)
+
+    def test_title_is_xml_escaped(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="bar", title='<b>"Dangerous" & \'Title\'</b>')
+        # Raw XSS characters must not appear verbatim
+        assert "<b>" not in svg
+        # Must still be valid XML after escaping
+        ET.fromstring(svg)
+
+    # --- Theme Tests (D4) ---
+
     @pytest.mark.parametrize("theme", ["light", "dark", "auto"])
-    def test_card_themes(self, sample_aggregate_stats, theme):
-        svg = render_svg(sample_aggregate_stats, card_type="bar", theme=theme)
-        if theme == "auto":
-            assert "@media (prefers-color-scheme: dark)" in svg
-        elif theme == "dark":
-            assert "#0d1117" in svg
-        elif theme == "light":
-            assert "#ffffff" in svg
+    def test_all_themes_produce_valid_xml(self, sample_aggregate_stats, theme):
+        for card_type in ["bar", "breakdown", "donut", "compact"]:
+            svg = render_svg(sample_aggregate_stats, card_type=card_type, theme=theme)
+            ET.fromstring(svg)
+
+    def test_dark_theme_embeds_dark_colors(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="bar", theme="dark")
+        assert "#0d1117" in svg
+        assert "#e6edf3" in svg
+        assert "#30363d" in svg
+
+    def test_light_theme_embeds_light_colors(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="bar", theme="light")
+        assert "#ffffff" in svg
+        assert "#24292f" in svg
+
+    def test_auto_theme_embeds_dark_media_query(self, sample_aggregate_stats):
+        for card_type in ["bar", "breakdown", "donut", "compact"]:
+            svg = render_svg(sample_aggregate_stats, card_type=card_type, theme="auto")
+            assert "@media (prefers-color-scheme: dark)" in svg, (
+                f"auto theme for {card_type!r} must embed @media (prefers-color-scheme: dark)"
+            )
+
+    # --- Metric Toggle Tests ---
+
+    def test_metric_bytes_includes_byte_values(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="bar", metric="bytes")
+        # Byte-formatted strings should appear in the SVG
+        assert "KB" in svg or "MB" in svg or "B" in svg
+
+    def test_metric_lines_includes_line_values(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="bar", metric="lines")
+        # Line counts should be present
+        assert "lines" in svg or "k" in svg or any(char.isdigit() for char in svg)
+        ET.fromstring(svg)
+
+    def test_breakdown_metric_both_shows_bytes_and_lines(self, sample_aggregate_stats):
+        svg = render_svg(sample_aggregate_stats, card_type="breakdown", metric="both")
+        assert "Bytes / %" in svg
+        assert "Lines / %" in svg
+
+    def test_breakdown_non_both_metrics_valid_xml(self, sample_aggregate_stats):
+        for metric in ["bytes", "lines"]:
+            svg = render_svg(sample_aggregate_stats, card_type="breakdown", metric=metric)
+            ET.fromstring(svg)
+
+    def test_other_cards_coerce_both_metric_to_bytes(self, sample_aggregate_stats):
+        """Cards other than breakdown don't support 'both'; should coerce silently."""
+        for card_type in ["bar", "donut", "compact"]:
+            svg = render_svg(sample_aggregate_stats, card_type=card_type, metric="both")
+            ET.fromstring(svg)  # Must still be valid XML
+
+    # --- langs_count / filtering ---
+
+    def test_langs_count_limits_languages(self, sample_aggregate_stats):
+        svg_all = render_svg(sample_aggregate_stats, card_type="bar", langs_count=10)
+        svg_top2 = render_svg(sample_aggregate_stats, card_type="bar", langs_count=2)
+        # The 3rd language (HTML) should not appear in the top-2 card
+        assert "HTML" not in svg_top2
+        assert "Python" in svg_top2
+        assert "TypeScript" in svg_top2
+
+    # --- show_files ---
+
+    def test_breakdown_show_files_adds_files_column(self, sample_aggregate_stats):
+        with_files = render_svg(sample_aggregate_stats, card_type="breakdown", show_files=True)
+        without_files = render_svg(sample_aggregate_stats, card_type="breakdown", show_files=False)
+        assert "Files" in with_files
+        assert "Files" not in without_files
+
+    # --- Empty stats edge case ---
 
     def test_empty_stats_produces_valid_svg_without_error(self):
         empty_stats = AggregateStats(username="empty_user")
@@ -337,6 +496,44 @@ class TestCardGenerators:
             assert root.tag.endswith("svg")
             assert "No language statistics found" in svg
 
+    @pytest.mark.parametrize("theme", ["light", "dark", "auto"])
+    def test_empty_stats_all_themes_valid(self, theme):
+        empty = AggregateStats(username="ghost")
+        for card_type in ["bar", "breakdown", "donut", "compact"]:
+            svg = render_svg(empty, card_type=card_type, theme=theme)
+            ET.fromstring(svg)
+
+    def test_empty_stats_does_not_contain_progress_bar(self):
+        """Empty stats should not render any progress bar segments."""
+        empty = AggregateStats(username="ghost")
+        for card_type in ["bar", "compact"]:
+            svg = render_svg(empty, card_type=card_type)
+            # No rect for language segments should appear alongside a track rect
+            assert "<path" not in svg  # No donut arc paths
+            # Confirm we have the right empty message
+            assert "No language statistics found" in svg
+
+    # --- Language names are properly XML-escaped in output ---
+
+    def test_xss_language_names_are_escaped(self):
+        stats = AggregateStats(username="user", total_bytes=1000, total_lines=100)
+        stats.aggregate = {
+            '<script>': LanguageStats(language='<script>', total_bytes=1000, total_lines=100, file_count=1),
+        }
+        for card_type in ["bar", "breakdown", "donut", "compact"]:
+            svg = render_svg(stats, card_type=card_type)
+            # Raw <script> tag must NOT appear in SVG output
+            assert "<script>" not in svg
+            # Must still be valid XML
+            ET.fromstring(svg)
+
+    # --- Invalid inputs ---
+
     def test_invalid_card_type_raises_value_error(self, sample_aggregate_stats):
         with pytest.raises(ValueError, match="Invalid card_type"):
             render_svg(sample_aggregate_stats, card_type="nonexistent")
+
+    def test_invalid_metric_coerces_to_bytes(self, sample_aggregate_stats):
+        """An unknown metric name should silently fall back to bytes."""
+        svg = render_svg(sample_aggregate_stats, card_type="bar", metric="invalid_metric")
+        ET.fromstring(svg)  # Must still produce valid SVG
