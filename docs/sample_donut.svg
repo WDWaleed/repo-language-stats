@@ -17,27 +17,27 @@
   <rect x="0.5" y="0.5" width="494" height="219" rx="6" class="card-bg" stroke="var(--card-border)"/>
   <text x="25" y="32" class="card-title">D:\Web Dev Projects\26_Repo Language Stats&apos;s Top Languages</text>
   <g class="donut-chart">
-    <path d="M 115.0 57.0 A 68.0 68.0 0 1 1 102.439 58.17 L 107.242 83.723 A 42.0 42.0 0 1 0 115.0 83.0 Z" fill="#3572A5">
-      <title>Python: 97.04%</title>
+    <path d="M 115.0 57.0 A 68.0 68.0 0 1 1 102.529 58.153 L 107.298 83.712 A 42.0 42.0 0 1 0 115.0 83.0 Z" fill="#3572A5">
+      <title>Python: 97.06%</title>
     </path>
-    <path d="M 102.439 58.17 A 68.0 68.0 0 0 1 114.7 57.001 L 114.815 83.0 A 42.0 42.0 0 0 0 107.242 83.723 Z" fill="#a52a22">
-      <title>Jinja: 2.89%</title>
+    <path d="M 102.529 58.153 A 68.0 68.0 0 0 1 114.7 57.001 L 114.815 83.0 A 42.0 42.0 0 0 0 107.298 83.712 Z" fill="#a52a22">
+      <title>Jinja: 2.87%</title>
     </path>
     <path d="M 114.7 57.001 A 68.0 68.0 0 0 1 115.0 57.0 L 115.0 83.0 A 42.0 42.0 0 0 0 114.815 83.0 Z" fill="#3178c6">
       <title>TypeScript: 0.07%</title>
     </path>
-    <text x="115.0" y="126.0" class="center-metric" text-anchor="middle">301.5 KB</text>
+    <text x="115.0" y="126.0" class="center-metric" text-anchor="middle">301.7 KB</text>
     <text x="115.0" y="140.0" class="center-label" text-anchor="middle">BYTES</text>
   </g>
   <g class="donut-legend">
     <circle cx="225" cy="60.0" r="4.5" fill="#3572A5"/>
-    <text x="238" y="" class="card-text">Python</text>
-    <text x="470" y="" class="card-secondary" text-anchor="end">292.6 KB (97.0%)</text>
+    <text x="238" y="64.0" class="card-text">Python</text>
+    <text x="470" y="64.0" class="card-secondary" text-anchor="end">97.1%</text>
     <circle cx="225" cy="84.0" r="4.5" fill="#a52a22"/>
-    <text x="238" y="" class="card-text">Jinja</text>
-    <text x="470" y="" class="card-secondary" text-anchor="end">8.7 KB (2.9%)</text>
+    <text x="238" y="88.0" class="card-text">Jinja</text>
+    <text x="470" y="88.0" class="card-secondary" text-anchor="end">2.9%</text>
     <circle cx="225" cy="108.0" r="4.5" fill="#3178c6"/>
-    <text x="238" y="" class="card-text">TypeScript</text>
-    <text x="470" y="" class="card-secondary" text-anchor="end">217 B (0.1%)</text>
+    <text x="238" y="112.0" class="card-text">TypeScript</text>
+    <text x="470" y="112.0" class="card-secondary" text-anchor="end">0.1%</text>
   </g>
 </svg>

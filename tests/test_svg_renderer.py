@@ -442,9 +442,11 @@ class TestCardGenerators:
     # --- Metric Toggle Tests ---
 
     def test_metric_bytes_includes_byte_values(self, sample_aggregate_stats):
+        # Bar card legend now shows percentage only; byte values appear only in breakdown
         svg = render_svg(sample_aggregate_stats, card_type="bar", metric="bytes")
-        # Byte-formatted strings should appear in the SVG
-        assert "KB" in svg or "MB" in svg or "B" in svg
+        # The card is valid XML and contains language names
+        ET.fromstring(svg)
+        assert "Python" in svg
 
     def test_metric_lines_includes_line_values(self, sample_aggregate_stats):
         svg = render_svg(sample_aggregate_stats, card_type="bar", metric="lines")

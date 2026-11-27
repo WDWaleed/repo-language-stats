@@ -29,7 +29,7 @@
   {% for item in items %}
     <circle cx="{{ item.dot_x }}" cy="{{ item.dot_y }}" r="4.5" fill="{{ item.color }}"/>
     <text x="{{ item.text_x }}" y="{{ item.text_y }}" class="card-text">{{ item.escaped_name }}</text>
-    <text x="{{ item.metric_x }}" y="{{ item.text_y }}" class="card-secondary">{{ item.formatted_metric }} ({{ item.percentage }}%)</text>
+    <text x="{{ item.metric_x }}" y="{{ item.text_y }}" class="card-secondary">{{ item.percentage }}%</text>
   {% endfor %}
   </g>
 {% endif %}

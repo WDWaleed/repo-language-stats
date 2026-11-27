@@ -88,11 +88,13 @@ def generate_donut_card(
         row_height = 24.0
         for i, lang in enumerate(languages):
             dot_y = legend_start_y + (i * row_height)
+            text_y = dot_y + 4
             items.append(
                 {
                     "dot_x": 225,
                     "dot_y": dot_y,
                     "text_x": 238,
+                    "text_y": text_y,
                     "metric_x": 470,
                     "color": lang["color"],
                     "escaped_name": lang["escaped_name"],

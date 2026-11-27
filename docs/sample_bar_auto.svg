@@ -29,25 +29,25 @@
   </clipPath>
   <rect x="25" y="50" width="445" height="10" rx="5" class="card-track"/>
   <g clip-path="url(#bar-clip)">
-    <rect x="25.0" y="50" width="431.84" height="10" fill="#3572A5">
-      <title>Python: 97.0%</title>
+    <rect x="25.0" y="50" width="431.94" height="10" fill="#3572A5">
+      <title>Python: 97.1%</title>
     </rect>
-    <rect x="456.84" y="50" width="12.84" height="10" fill="#a52a22">
+    <rect x="456.94" y="50" width="12.75" height="10" fill="#a52a22">
       <title>Jinja: 2.9%</title>
     </rect>
-    <rect x="469.68" y="50" width="0.32" height="10" fill="#3178c6">
+    <rect x="469.69" y="50" width="0.31" height="10" fill="#3178c6">
       <title>TypeScript: 0.1%</title>
     </rect>
   </g>
   <g class="legend">
     <circle cx="30" cy="78" r="4.5" fill="#3572A5"/>
     <text x="43" y="82" class="card-text">Python</text>
-    <text x="145" y="82" class="card-secondary">292.6 KB (97.0%)</text>
-    <circle cx="252" cy="78" r="4.5" fill="#a52a22"/>
-    <text x="265" y="82" class="card-text">Jinja</text>
-    <text x="367" y="82" class="card-secondary">8.7 KB (2.9%)</text>
-    <circle cx="30" cy="102" r="4.5" fill="#3178c6"/>
-    <text x="43" y="106" class="card-text">TypeScript</text>
-    <text x="145" y="106" class="card-secondary">217 B (0.1%)</text>
+    <text x="145" y="82" class="card-secondary">97.1%</text>
+    <circle cx="30" cy="102" r="4.5" fill="#a52a22"/>
+    <text x="43" y="106" class="card-text">Jinja</text>
+    <text x="145" y="106" class="card-secondary">2.9%</text>
+    <circle cx="252" cy="78" r="4.5" fill="#3178c6"/>
+    <text x="265" y="82" class="card-text">TypeScript</text>
+    <text x="367" y="82" class="card-secondary">0.1%</text>
   </g>
 </svg>

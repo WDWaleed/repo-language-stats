@@ -61,12 +61,14 @@ def generate_bar_card(
             )
             current_x += seg_width
 
-        # Legend items in 2 columns
+        # Legend items in 2 columns, ordered column-first:
+        # column 1 gets items [0 .. col_size-1], column 2 gets the rest.
         row_height = 24
-        col_width = 222
+        num_langs = len(languages)
+        col_size = math.ceil(num_langs / 2)  # rows per column
         for idx, lang in enumerate(languages):
-            col = idx % 2
-            row = idx // 2
+            col = idx // col_size   # 0 = left column, 1 = right column
+            row = idx % col_size
             base_x = 25 if col == 0 else 247
             dot_y = legend_start_y + (row * row_height)
             text_y = dot_y + 4
@@ -85,7 +87,7 @@ def generate_bar_card(
                 }
             )
 
-        num_rows = math.ceil(len(languages) / 2)
+        num_rows = col_size
         height = legend_start_y + (num_rows * row_height) + 16
     else:
         height = 130

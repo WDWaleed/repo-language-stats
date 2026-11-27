@@ -24,10 +24,10 @@
   <!-- Language Rows -->
   <circle cx="30" cy="83" r="4.5" fill="#3572A5"/>
   <text x="42" y="87" class="card-text">Python</text>
-  <text x="490" y="87" class="card-secondary" text-anchor="end">292.6 KB (97.0%)</text>
+  <text x="490" y="87" class="card-secondary" text-anchor="end">292.9 KB (97.1%)</text>
   <circle cx="30" cy="109" r="4.5" fill="#a52a22"/>
   <text x="42" y="113" class="card-text">Jinja</text>
-  <text x="490" y="113" class="card-secondary" text-anchor="end">8.7 KB (2.9%)</text>
+  <text x="490" y="113" class="card-secondary" text-anchor="end">8.6 KB (2.9%)</text>
   <circle cx="30" cy="135" r="4.5" fill="#3178c6"/>
   <text x="42" y="139" class="card-text">TypeScript</text>
   <text x="490" y="139" class="card-secondary" text-anchor="end">217 B (0.1%)</text>
@@ -35,5 +35,5 @@
   <!-- Table Footer -->
   <line x1="25" y1="161" x2="495" y2="161" class="divider"/>
   <text x="25" y="183" class="card-title" font-size="12">TOTAL</text>
-  <text x="490" y="183" class="card-text" text-anchor="end" font-weight="600">301.5 KB</text>
+  <text x="490" y="183" class="card-text" text-anchor="end" font-weight="600">301.7 KB</text>
 </svg>
