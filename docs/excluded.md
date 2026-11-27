@@ -19,6 +19,7 @@ To provide meaningful programming-language statistics that reflect actual applic
 | **TOML** | `.toml` | Configuration manifests (e.g., `pyproject.toml`, `Cargo.toml`) |
 | **SVG** | `.svg` | Scalable Vector Graphics images (XML-based vector assets) |
 | **Dotenv** | `.env`, `.env.*`, `*.env` | Local environment variables and configuration files |
+| **TeX** | `.tex`, `.sty`, `.ltx`, `.dtx` | LaTeX/TeX typesetting documents and macro packages |
 
 ### Why Are These Excluded by Default?
 
@@ -41,7 +42,7 @@ repo-language-stats <username> --all
 uv run repo-language-stats WDWaleed --all
 ```
 
-When `--all` is supplied, files matching `.json`, `.jsonc`, `.csv`, `.yaml`, `.yml`, `.toml`, `.svg`, and `.env*` will be classified according to GitHub Linguist rules (e.g. `JSON`, `JSON with Comments`, `CSV`, `YAML`, `TOML`, `SVG`, `Dotenv`) and included in the byte, line, and file count statistics.
+When `--all` is supplied, files matching `.json`, `.jsonc`, `.csv`, `.yaml`, `.yml`, `.toml`, `.svg`, `.env*`, and `.tex`/TeX will be classified according to GitHub Linguist rules (e.g. `JSON`, `JSON with Comments`, `CSV`, `YAML`, `TOML`, `SVG`, `Dotenv`, `TeX`) and included in the byte, line, and file count statistics.
 
 ---
 
