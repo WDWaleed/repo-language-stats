@@ -43,6 +43,7 @@ DEFAULT_EXCLUDED_EXTENSIONS: frozenset[str] = frozenset(
         ".json5",
         ".jsonld",
         ".jsonl",
+        ".tex",
     }
 )
 
@@ -57,6 +58,7 @@ DEFAULT_EXCLUDED_LANGUAGES: frozenset[str] = frozenset(
         "JSON with Comments",
         "JSON5",
         "JSONLD",
+        "TeX",
     }
 )
 
@@ -163,7 +165,7 @@ class FileDiscoveryFilter:
         return ext in {".md", ".rst", ".txt", ".adoc", ".asciidoc"}
 
     def is_default_excluded(self, path: str) -> bool:
-        """Check if a path matches file formats excluded by default (csv, yaml, toml, svg, dotenv, json, jsonc)."""
+        """Check if a path matches file formats excluded by default (csv, yaml, toml, svg, dotenv, json, jsonc, tex)."""
         norm_path = path.replace("\\", "/")
         p = Path(norm_path)
         filename = p.name.lower()

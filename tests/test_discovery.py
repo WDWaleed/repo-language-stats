@@ -90,6 +90,8 @@ def test_default_excluded_formats():
     assert is_eligible("tsconfig.json") is False
     assert is_eligible("settings.jsonc") is False
     assert is_eligible("records.jsonl") is False
+    assert is_eligible("paper.tex") is False
+    assert is_eligible("thesis/macros.sty") is False
 
 
 def test_include_all_flag():
@@ -105,6 +107,8 @@ def test_include_all_flag():
     assert is_eligible("tsconfig.json", config=cfg) is True
     assert is_eligible("settings.jsonc", config=cfg) is True
     assert is_eligible("records.jsonl", config=cfg) is True
+    assert is_eligible("paper.tex", config=cfg) is True
+    assert is_eligible("thesis/macros.sty", config=cfg) is True
 
 
 def test_non_blob_entries_excluded():
