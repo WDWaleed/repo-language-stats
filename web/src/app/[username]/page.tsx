@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, Code, FileCode2, FolderGit2, HardDrive } from "lucide-react";
 import { DashboardClient } from "@/components/DashboardClient";
+import { RefreshButton } from "@/components/RefreshButton";
 import { redis } from "@/lib/redis";
 import type { CachedUserStats, CardType } from "@/lib/svg/types";
 import { formatBytes, formatNumber } from "@/lib/svg/utils";
@@ -111,6 +112,7 @@ export default async function UserDashboardPage({ params, searchParams }: PagePr
             @{stats.username}
           </h1>
         </div>
+        <RefreshButton username={stats.username} />
       </div>
 
       {/* KPI cards */}
